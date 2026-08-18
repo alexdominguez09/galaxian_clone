@@ -24,15 +24,25 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerFlags)
 
 find_package(SDL2 REQUIRED)
+find_package(SDL2_ttf REQUIRED)
+find_package(SDL2_image REQUIRED)
 
-# Core library: timing + shared types. Kept separate so unit tests can link
-# the pure-logic parts without the full application.
+# Core library: timing + shared types + rendering. Kept separate so unit
+# tests can link the logic without the full application.
 add_library(galaxian_core STATIC
     src/core/GameClock.cpp
     src/core/TimestepController.cpp
+    src/graphics/Texture.cpp
+    src/graphics/Renderer.cpp
+    src/graphics/DevArt.cpp
+    src/graphics/DevScene.cpp
 )
 target_include_directories(galaxian_core PUBLIC src)
-target_link_libraries(galaxian_core PUBLIC SDL2::SDL2)
+target_link_libraries(galaxian_core PUBLIC
+    SDL2::SDL2
+    SDL2_ttf::SDL2_ttf
+    SDL2_image::SDL2_image
+)
 
 add_executable(galaxian
     src/main.cpp

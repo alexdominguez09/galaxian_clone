@@ -91,11 +91,21 @@ render()
 
 ### 3.2 Renderer (Stage 3)
 
-- Wraps `SDL_Renderer`; sets logical size 448×576; integer scaling when the
-  window allows, letterbox otherwise.
-- API: `drawSprite`, `drawRect`, `drawText`, `clear`, `present`.
-- Nearest-neighbor filtering for pixel-art fidelity.
-- Textures cached by path; sprites positioned in logical coordinates.
+- Wraps `SDL_Renderer`, the window, and the font. All drawing is in logical
+  coordinates (448×576); the window is scaled and letterboxed so gameplay
+  coordinates never depend on window size.
+- Scaling is applied **manually** in the draw calls (recompute an integer
+  scale + centered offset from the live window size on every `clear`, then
+  transform each rect/position). SDL's own `SDL_RenderSetLogicalSize` is not
+  used: under the software renderer it top-left-anchors the content, leaves
+  the letterbox bars transparent, and produces a blank frame when the window
+  is smaller than the logical size.
+- API: `drawSprite`, `drawRect`, `drawFilledRect`, `drawText`, `clear`,
+  `present`, `texture` (cached load), `registerTexture`.
+- Nearest-neighbor filtering for pixel-art fidelity (`SDL_ScaleModeNearest`).
+- Textures cached by id/path; sprites positioned in logical coordinates.
+- Text via SDL_ttf with a per-size font cache and a rendered-text cache;
+  degrades gracefully (text disabled) if no TTF font is found.
 
 ### 3.3 InputManager (Stage 4)
 

@@ -35,12 +35,12 @@ Manual:
 - [ ] 15-minute run: no timing drift, no memory growth, stable FPS
 
 ### Stage 3 — Rendering
-- [ ] Texture loads from disk (valid + missing file case)
-- [ ] Test scene renders: player sprite, 10 enemies, text, projectiles, border
-- [ ] Window resize does not change logical coordinates (verified via
+- [x] Texture loads from disk (valid + missing file case)
+- [x] Test scene renders: player sprite, 10 enemies, text, projectiles, border
+- [x] Window resize does not change logical coordinates (verified via
       rendered pixel positions at 2+ window sizes)
-- [ ] Sprite flipping works
-- [ ] Text renders at expected positions
+- [x] Sprite flipping works
+- [x] Text renders at expected positions
 
 ### Stage 4 — Input
 - [ ] `wasPressed` true for exactly one frame on keydown

@@ -4,10 +4,6 @@
 
 namespace galaxian {
 
-namespace {
-constexpr const char* kWindowTitle = "Galaxian Clone";
-}  // namespace
-
 Game::~Game() { shutdown(); }
 
 bool Game::initialize()
@@ -16,49 +12,14 @@ bool Game::initialize()
         return true;
     }
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::fprintf(stderr, "galaxian: SDL_Init failed: %s\n", SDL_GetError());
+    if (!renderer_.initialize(kLogicalWidth, kLogicalHeight, vsync_)) {
         return false;
     }
-
-    window_ = SDL_CreateWindow(kWindowTitle,
-                               SDL_WINDOWPOS_CENTERED,
-                               SDL_WINDOWPOS_CENTERED,
-                               kLogicalWidth,
-                               kLogicalHeight,
-                               SDL_WINDOW_RESIZABLE);
-    if (window_ == nullptr) {
-        std::fprintf(stderr, "galaxian: SDL_CreateWindow failed: %s\n",
-                     SDL_GetError());
+    if (!devScene_.initialize(renderer_)) {
+        std::fprintf(stderr, "galaxian: dev scene initialization failed\n");
         shutdown();
         return false;
     }
-
-    Uint32 flags = SDL_RENDERER_ACCELERATED;
-    if (vsync_) {
-        flags |= SDL_RENDERER_PRESENTVSYNC;
-    }
-    renderer_ = SDL_CreateRenderer(window_, -1, flags);
-    if (renderer_ == nullptr) {
-        // Fall back to software rendering (e.g. headless / dummy driver).
-        renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);
-    }
-    if (renderer_ == nullptr) {
-        std::fprintf(stderr, "galaxian: SDL_CreateRenderer failed: %s\n",
-                     SDL_GetError());
-        shutdown();
-        return false;
-    }
-
-    // Fixed logical coordinate space; the window scales it.
-    if (SDL_RenderSetLogicalSize(renderer_, kLogicalWidth, kLogicalHeight) != 0) {
-        std::fprintf(stderr, "galaxian: SDL_RenderSetLogicalSize failed: %s\n",
-                     SDL_GetError());
-        shutdown();
-        return false;
-    }
-
-    SDL_SetRenderDrawColor(renderer_, 0, 0, 0, 255);
 
     initialized_ = true;
     return true;
@@ -141,41 +102,44 @@ void Game::fixedUpdate(double dt)
 
 void Game::render()
 {
-    SDL_RenderClear(renderer_);
+    // Stage 3 test scene (docs/test_plan.md §1): player sprite, 10 enemy
+    // sprites, text, projectile rectangles, screen border.
+    devScene_.draw(renderer_);
 
-    // Placeholder scene: a border rectangle so there is something to see.
-    // Replaced by the real Renderer subsystem in Stage 3.
-    SDL_SetRenderDrawColor(renderer_, 96, 96, 140, 255);
-    const SDL_Rect border{0, 0, kLogicalWidth, kLogicalHeight};
-    SDL_RenderDrawRect(renderer_, &border);
+    if (statsEnabled_) {
+        char line[64];
+        std::snprintf(line, sizeof(line), "FPS: %.1f  UPD/S: %.1f", fps_,
+                      updatesPerSecond_);
+        renderer_.drawText(line, {16.0f, 480.0f}, colors::kGreen);
+        std::snprintf(line, sizeof(line), "SIM: %.3f s  STEP: %.1f ms",
+                      simTime_, timestep_.dt() * 1000.0);
+        renderer_.drawText(line, {16.0f, 496.0f}, colors::kGreen);
+    }
 
-    SDL_RenderPresent(renderer_);
+    renderer_.present();
 }
 
 void Game::reportStats()
 {
-    // Temporary debug overlay (Stage 2): console line every second while
-    // enabled. Becomes an on-screen overlay in Stage 3 (text rendering).
-    // Enabled automatically in smoke mode so headless runs are observable.
-    if (!statsEnabled_ && !inSmokeMode()) {
-        return;
-    }
-
+    // Debug overlay. On-screen text when F2 is toggled (Stage 3); the
+    // console line is kept for smoke runs, where it is enabled
+    // automatically so headless runs are observable.
     const double now = clock_.elapsed();
     if (now - lastReportSeconds_ < 1.0) {
         return;
     }
 
     const double window = now - lastReportSeconds_;
-    const double fps = static_cast<double>(framesSinceReport_) / window;
-    const double updatesPerSecond =
-        static_cast<double>(updatesSinceReport_) / window;
+    fps_ = static_cast<double>(framesSinceReport_) / window;
+    updatesPerSecond_ = static_cast<double>(updatesSinceReport_) / window;
 
-    std::fprintf(stderr,
-                 "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                 "sim_time=%.1fs entities=%d\n",
-                 fps, lastFrameSeconds_ * 1000.0, updatesPerSecond, simTime_,
-                 0 /* entity count; no gameplay objects yet */);
+    if (statsEnabled_ || inSmokeMode()) {
+        std::fprintf(stderr,
+                     "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
+                     "sim_time=%.1fs entities=%d\n",
+                     fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
+                     simTime_, 0 /* entity count; no gameplay objects yet */);
+    }
 
     lastReportSeconds_ = now;
     framesSinceReport_ = 0;
@@ -184,17 +148,7 @@ void Game::reportStats()
 
 void Game::shutdown()
 {
-    if (renderer_ != nullptr) {
-        SDL_DestroyRenderer(renderer_);
-        renderer_ = nullptr;
-    }
-    if (window_ != nullptr) {
-        SDL_DestroyWindow(window_);
-        window_ = nullptr;
-    }
-    if (SDL_WasInit(SDL_INIT_VIDEO) != 0) {
-        SDL_Quit();
-    }
+    renderer_.shutdown();
     initialized_ = false;
     running_ = false;
 }

@@ -5,15 +5,19 @@
 #include "Constants.hpp"
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
+#include "graphics/DevScene.hpp"
+#include "graphics/Renderer.hpp"
 
 namespace galaxian {
 
 // Game — top-level application object.
 //
 // Owns: initialization, main loop, event processing, update, rendering,
-// shutdown. Stage 2 adds deterministic timing: the loop feeds real frame
-// time into a TimestepController and runs a fixed number of 1/60 s
-// simulation steps per frame (docs/architecture.md §3.1).
+// shutdown. Stage 2 provides deterministic timing: the loop feeds real
+// frame time into a TimestepController and runs a fixed number of 1/60 s
+// simulation steps per frame (docs/architecture.md §3.1). Stage 3 routes
+// all drawing through the Renderer subsystem and shows the DevScene test
+// scene until gameplay rendering exists (Stage 5+).
 class Game {
 public:
     Game() = default;
@@ -24,8 +28,8 @@ public:
     Game(Game&&) = delete;
     Game& operator=(Game&&) = delete;
 
-    // SDL init + window + renderer. Returns false (with a diagnostic on
-    // stderr) if any of them fail.
+    // SDL init + window + renderer + font + dev scene. Returns false (with
+    // a diagnostic on stderr) if any of them fail.
     bool initialize();
 
     // Main loop: processEvents -> fixed updates -> render, until quit.
@@ -60,20 +64,22 @@ private:
     bool initialized_ = false;
     bool running_ = false;
 
-    SDL_Window* window_ = nullptr;
-    SDL_Renderer* renderer_ = nullptr;
+    Renderer renderer_;
+    DevScene devScene_;
     bool vsync_ = true;
 
     GameClock clock_;
     TimestepController timestep_{kFixedDeltaSeconds, kMaxCatchUpSteps};
 
-    // Debug stats. Toggled with F2. Console-based until Stage 3 provides
-    // on-screen text rendering (docs/architecture.md §3.1).
+    // Debug stats. Toggled with F2: on-screen overlay (Stage 3 text
+    // rendering) plus the console line used by smoke runs.
     bool statsEnabled_ = false;
     double lastReportSeconds_ = 0.0;
     int framesSinceReport_ = 0;
     int updatesSinceReport_ = 0;
     double lastFrameSeconds_ = 0.0;
+    double fps_ = 0.0;
+    double updatesPerSecond_ = 0.0;
 
     // Frame/update counters (diagnostics + smoke summary).
     int frameCount_ = 0;

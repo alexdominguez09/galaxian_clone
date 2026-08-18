@@ -17,6 +17,8 @@ include(Catch)
 add_executable(galaxian_tests
     test_timestep.cpp
     test_game_clock.cpp
+    test_types.cpp
+    test_rendering.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE
     galaxian_core
