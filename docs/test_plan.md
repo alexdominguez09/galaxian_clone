@@ -1,0 +1,246 @@
+# Galaxian Clone — Test Plan
+
+Covers automated (Catch2/CTest) and manual acceptance testing per stage, plus
+the final regression suite. A stage is only complete when its automated tests
+pass **and** its manual checklist passes.
+
+---
+
+## 0. Test Infrastructure
+
+- Framework: Catch2 v3; runner: `ctest --test-dir build` (or `./build/tests/galaxian_tests`).
+- Builds: `Debug` (default), `Release`, `Sanitize` (ASan+UBSan).
+- Headless: logic tests never open a window. Smoke runs of the full binary
+  use `SDL_VIDEODRIVER=dummy` and the `--smoke <frames>` flag.
+- Environments tested: GCC and Clang (both must build warning-free).
+
+## 1. Per-Stage Test Matrix
+
+### Stage 1 — Project skeleton
+- [ ] Clean clone builds with GCC (and Clang) at `-Wall -Wextra -Wpedantic`, 0 warnings
+- [ ] `SDL_Init` + window + renderer succeed (real display and dummy driver)
+- [ ] Window close (SDL_QUIT) exits with code 0
+- [ ] Escape exits with code 0
+- [ ] Shutdown path runs without warnings/crashes
+- [ ] `--smoke 120` under `SDL_VIDEODRIVER=dummy` runs 120 frames and exits 0
+
+### Stage 2 — Game loop and timing
+Automated (headless, no window):
+- [ ] Fixed timestep: N simulated seconds produce exactly N×60 updates
+- [ ] Simulation at simulated 30/60/120 Hz render rates yields identical
+      object positions after a fixed simulated time
+- [ ] Accumulator cap: a 1 s stall produces ≤ 5 catch-up updates, no spiral
+Manual:
+- [ ] Debug overlay (F2) shows FPS/frame time/update/entity counts
+- [ ] 15-minute run: no timing drift, no memory growth, stable FPS
+
+### Stage 3 — Rendering
+- [ ] Texture loads from disk (valid + missing file case)
+- [ ] Test scene renders: player sprite, 10 enemies, text, projectiles, border
+- [ ] Window resize does not change logical coordinates (verified via
+      rendered pixel positions at 2+ window sizes)
+- [ ] Sprite flipping works
+- [ ] Text renders at expected positions
+
+### Stage 4 — Input
+- [ ] `wasPressed` true for exactly one frame on keydown
+- [ ] `isHeld` true while held, false after release
+- [ ] `wasReleased` true for exactly one frame on keyup
+- [ ] Simultaneous left+right handled (last-pressed-wins or cancel — spec'd)
+- [ ] No `SDLK_*` in gameplay/ (grep check in CI)
+
+### Stage 5 — Player
+- [ ] Player cannot move left of x=0 (clamped)
+- [ ] Player cannot move right of right edge (clamped)
+- [ ] Movement distance = speed × dt over N steps (exact)
+- [ ] Initial position matches spec (224, 528)
+- [ ] Fire command emits a fire event (log) — no projectile yet
+- [ ] Frame-rate independence: same position after 10 s sim at 30 vs 120 Hz
+Manual:
+- [ ] Smooth movement, correct feel, stays in bounds
+
+### Stage 6 — Projectiles
+- [ ] Fire spawns a projectile at the player position moving upward
+- [ ] Projectile removed when y < -height
+- [ ] Cooldown: second shot within 0.35 s is rejected
+- [ ] Max 2 simultaneous player projectiles enforced
+- [ ] No leaks: fire 10 000 shots headlessly, active count returns to 0
+- [ ] Stress: continuous fire for 5 simulated minutes — stable memory
+
+### Stage 7 — Collision
+- [ ] Overlap detected; no overlap not detected
+- [ ] Edge-touching = no collision (strict)
+- [ ] Full containment detected
+- [ ] Partial intersection detected
+- [ ] Negative coordinates handled
+- [ ] Degenerate (zero-size) rects handled
+Manual:
+- [ ] F1 draws boxes aligned with sprites
+- [ ] No collision code in graphics/
+
+### Stage 8 — Enemy formation
+- [ ] Exactly 40 enemies spawned
+- [ ] Row/type layout matches spec (8/8/8/8/8, types per row)
+- [ ] Spacing: 48 px columns, 36 px rows
+- [ ] Initial coordinates match spec exactly
+- [ ] Deterministic: identical layout across 100 spawns
+
+### Stage 9 — Player vs enemy combat
+- [ ] Bullet-enemy overlap → enemy dead, bullet consumed
+- [ ] Score increases by the type's point value
+- [ ] One bullet cannot kill two enemies (bullet consumed on first hit)
+- [ ] Dead enemy cannot be scored twice
+- [ ] Destroying all 40 enemies works without corruption
+Manual:
+- [ ] Entire stationary formation destroyable reliably
+
+### Stage 10 — Formation movement
+- [ ] Formation oscillates within screen bounds
+- [ ] Enemy spacing invariant while moving
+- [ ] Killed enemies stay absent; formation state valid after deaths
+- [ ] Frame-rate independence of oscillation phase at fixed sim time
+
+### Stage 11 — Enemy state machine
+- [ ] All legal transitions accepted; illegal transitions rejected
+- [ ] Dead reachable from any living state; Dead is terminal
+- [ ] Selected enemy: leaves formation → descends → turn point → returns →
+      occupies original slot (slot offset unchanged, formation intact)
+- [ ] Formation state uncorrupted after a full dive cycle
+Manual:
+- [ ] F2/debug shows state labels (FORMATION/DIVING/RETURNING) above enemies
+
+### Stage 12 — Dive trajectories
+- [ ] Bézier evaluation: P(0)=P0, P(1)=P3, symmetry checks
+- [ ] t stays in [0,1] under 10 000 headless updates
+- [ ] Enemy follows full path and finishes (t=1 → state transition)
+- [ ] Left/right/center/return paths all complete and terminate in valid state
+- [ ] Path speed is frame-rate independent (arc-length or parametric check)
+
+### Stage 13 — Attack director
+- [ ] Attack count never exceeds wave maximum
+- [ ] Attack interval respected (±1 frame)
+- [ ] Dead enemies never selected
+- [ ] Diving enemies never re-selected
+- [ ] No eligible attacker → attack skipped, no deadlock (1000-tick soak)
+- [ ] All 40 enemies dead → director idles safely
+
+### Stage 14 — Enemy projectiles
+- [ ] Enemy fires during attack (1–2 shots per wave rules)
+- [ ] Enemy bullets move downward, culled off-screen
+- [ ] Enemy bullet never damages an enemy (ownership)
+- [ ] Player bullet never damages player (ownership)
+- [ ] Aimed shots point at player position at fire time
+
+### Stage 15 — Player death/lives
+- [ ] Enemy bullet collision → exactly one life removed
+- [ ] Enemy body collision → exactly one life removed
+- [ ] Two collisions in the same frame → exactly one life removed
+- [ ] Respawn after 1.5 s at start position with 2.0 s invulnerability
+- [ ] Invulnerable player ignores collisions
+- [ ] Respawn clears nearby enemy projectiles
+- [ ] Zero lives → GameOver, no respawn
+
+### Stage 16 — Waves
+- [ ] Wave N clears → interstitial → wave N+1 formation with correct params
+- [ ] Difficulty values stay within spec bounds for waves 1..20
+- [ ] 10 consecutive waves: no state corruption (headless scripted run)
+- [ ] Wave counter in HUD matches WaveManager state
+
+### Stage 17 — Game states
+- [ ] Every transition in the state graph works; illegal ones rejected
+- [ ] start → die → game over → restart ×100: no leaked entities
+- [ ] pause → resume ×100: simulation time frozen while paused
+- [ ] Quit from any state exits cleanly
+
+### Stage 18 — HUD
+- [ ] Score display equals ScoreManager value after each event
+- [ ] Lives display matches lives (3 → 2 → 1 → 0)
+- [ ] Wave display matches current wave
+- [ ] High score updates within session when surpassed
+- [ ] Score popups/flash do not affect score value
+
+### Stage 19 — Animation
+- [ ] Clip advances at correct rate (frames advanced = sim time × fps)
+- [ ] Looping clips loop; one-shot clips stop at last frame
+- [ ] Animation state does not alter physics (position checks)
+- [ ] Destroyed entity's animation resources released (no dangling draw)
+
+### Stage 20 — Audio
+- [ ] Each SoundId triggers its callback (mock device)
+- [ ] 100 rapid fires: no corruption, bounded voice count
+- [ ] Overlapping SFX allowed
+- [ ] No audio device → game runs silent, no crash
+- [ ] Shutdown releases audio (no leak reports)
+
+### Stage 21 — Configuration
+- [ ] All §14 spec values load from game.json and are used by gameplay
+- [ ] Changing a value changes behavior without recompiling
+- [ ] Missing/invalid config → documented defaults, no crash
+
+### Stage 22 — High score persistence
+- [ ] Score survives quit/relaunch
+- [ ] Missing file → 0, no crash
+- [ ] Corrupt file (garbage bytes, truncated) → 0, no crash
+- [ ] Save is atomic (no partial file after simulated crash)
+- [ ] Directory auto-created if absent
+
+### Stage 23 — Balancing
+- [ ] 3+ structured playtest sessions logged (survival time, accuracy,
+      deaths, waves reached)
+- [ ] No fundamental mechanic changes required (only numeric tuning)
+- [ ] Values written back into game.json + spec revision note
+
+### Stage 24 — Visual polish
+- [ ] All prototype sprites replaced; palette consistent
+- [ ] No collision box changed vs Stage 23 (regression: combat tests pass)
+- [ ] Nearest-neighbor scaling, integer scaling at common window sizes
+
+### Stage 25 — Performance and stability
+- [ ] ASan+UBSan build: 30-minute gameplay session, 0 errors
+- [ ] Valgrind: short session, 0 definite leaks
+- [ ] Rapid restart ×100, pause/resume ×100, wave transition ×50: clean
+- [ ] Continuous firing 10 min: stable memory
+- [ ] Max simultaneous enemies/projectiles scenario: stable frame time
+- [ ] CPU profile: update cost within budget (logged)
+
+### Stage 26 — Final regression
+Full checklist (see §2 below) on GCC + Clang, Debug + Release,
+windowed + fullscreen, with and without audio device, fresh install
+(no config/save files), multiple resolutions.
+
+## 2. v1.0 Regression Checklist (Stage 26)
+
+Functional:
+- [ ] Startup → title screen renders, high score shown
+- [ ] Enter starts game; Escape on title quits
+- [ ] Player moves left/right, clamped to screen
+- [ ] Player fires; cooldown and max-shots respected
+- [ ] Enemy formation appears correctly (40 enemies, right layout)
+- [ ] Formation oscillates; killed enemies leave holes
+- [ ] Player bullets kill enemies; score correct per type
+- [ ] Dives occur per director rules; diving enemies worth double
+- [ ] Enemy bullets fire, move, cull; ownership enforced
+- [ ] Player death → life lost → respawn with invulnerability
+- [ ] Zero lives → game over screen with final score
+- [ ] Waves progress with bounded difficulty
+- [ ] Pause freezes simulation; resume continues seamlessly
+- [ ] Restart from game over is clean (no stale entities)
+- [ ] High score persists across runs
+- [ ] Audio plays; silent fallback works without device
+- [ ] Window close exits cleanly from every state
+- [ ] Fullscreen/windowed toggle (if implemented) works
+
+Matrix:
+- [ ] Fresh install (no ~/.local/share/galaxian-clone)
+- [ ] Missing config file → defaults
+- [ ] Missing/corrupt save file → 0
+- [ ] No audio device
+- [ ] Resolutions: 448×576, 896×1152, 1344×1728, wide 1920×1080 (letterbox)
+- [ ] GCC Debug, GCC Release, Clang Debug, Clang Release, Sanitize build
+
+## 3. Definition of Done (per stage)
+
+1. All automated tests for the stage pass on GCC (and Clang when available).
+2. Manual acceptance checklist for the stage passes.
+3. Zero compiler warnings at `-Wall -Wextra -Wpedantic`.
+4. Code committed; stage tagged only after 1–3 are green.
