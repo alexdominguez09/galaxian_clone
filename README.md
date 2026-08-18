@@ -10,7 +10,8 @@ feel is the target.
 |-------|----------------------|-------|
 | 0     | Specification        | done  |
 | 1     | Project skeleton     | done  |
-| 2+    | Game loop, ...       | not started |
+| 2     | Game loop & timing   | done  |
+| 3+    | Rendering, ...       | not started |
 
 Development proceeds stage by stage; see `docs/game_spec.md`,
 `docs/architecture.md`, and `docs/test_plan.md`. Every accepted stage is
@@ -53,10 +54,19 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Sanitize    # ASan + UBSan
 ## Developer notes
 
 - Logical resolution is 448×576; the window scales it.
-- Headless smoke run (no display needed):
+- The simulation runs at a fixed 1/60 s timestep; render rate never changes
+  gameplay speed (Stage 2).
+- Headless smoke runs (no display needed):
 
   ```bash
-  SDL_VIDEODRIVER=dummy ./build/galaxian --smoke 120
+  SDL_VIDEODRIVER=dummy ./build/galaxian --smoke 120          # N frames
+  SDL_VIDEODRIVER=dummy ./build/galaxian --smoke-time 5       # N seconds
+  SDL_VIDEODRIVER=dummy ./build/galaxian --smoke-time 5 --no-vsync
   ```
 
+  Smoke runs print a summary (`frames`, `updates`, `sim_time`, `wall_time`)
+  and a per-second stats line on stderr.
+- F2 toggles the (temporary, console-based) debug stats: fps, frame time,
+  updates/s, entity count. Becomes an on-screen overlay in Stage 3.
+- Unit tests: `ctest --test-dir build` (Catch2, fetched at configure time).
 - Warning policy: `-Wall -Wextra -Wpedantic`, zero warnings.

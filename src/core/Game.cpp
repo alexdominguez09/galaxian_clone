@@ -34,8 +34,11 @@ bool Game::initialize()
         return false;
     }
 
-    renderer_ =
-        SDL_CreateRenderer(window_, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    Uint32 flags = SDL_RENDERER_ACCELERATED;
+    if (vsync_) {
+        flags |= SDL_RENDERER_PRESENTVSYNC;
+    }
+    renderer_ = SDL_CreateRenderer(window_, -1, flags);
     if (renderer_ == nullptr) {
         // Fall back to software rendering (e.g. headless / dummy driver).
         renderer_ = SDL_CreateRenderer(window_, -1, SDL_RENDERER_SOFTWARE);
@@ -67,12 +70,37 @@ void Game::run()
         return;
     }
 
+    clock_.start();
     running_ = true;
     while (running_) {
         processEvents();
-        update();
+
+        // Fixed-timestep loop (docs/architecture.md §3.1):
+        //   acc += frameDelta; while (acc >= dt) fixedUpdate(dt);
+        const double frameDelta = clock_.frameDelta();
+        lastFrameSeconds_ = frameDelta;
+
+        const int steps = timestep_.advance(frameDelta);
+        for (int i = 0; i < steps; ++i) {
+            fixedUpdate(timestep_.dt());
+        }
+        updatesSinceReport_ += steps;
+
         render();
+        ++frameCount_;
+        ++framesSinceReport_;
+
+        if (smokeFrames_ > 0 && frameCount_ >= smokeFrames_) {
+            running_ = false;
+        }
+        if (smokeSeconds_ > 0.0 && clock_.elapsed() >= smokeSeconds_) {
+            running_ = false;
+        }
+
+        reportStats();
     }
+    wallTime_ = clock_.elapsed();
+    clock_.stop();
 }
 
 void Game::processEvents()
@@ -84,8 +112,15 @@ void Game::processEvents()
             running_ = false;
             break;
         case SDL_KEYDOWN:
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
+            switch (event.key.keysym.sym) {
+            case SDLK_ESCAPE:
                 running_ = false;
+                break;
+            case SDLK_F2:
+                statsEnabled_ = !statsEnabled_;
+                break;
+            default:
+                break;
             }
             break;
         default:
@@ -94,14 +129,14 @@ void Game::processEvents()
     }
 }
 
-void Game::update()
+void Game::fixedUpdate(double dt)
 {
-    // No gameplay yet (Stage 1). Timing/fixed-step logic arrives in Stage 2.
-    if (smokeFrames_ > 0) {
-        if (++frameCount_ >= smokeFrames_) {
-            running_ = false;
-        }
-    }
+    // No gameplay yet (Stage 2). Simulation logic lands in Stage 5+.
+    // These counters prove the loop runs a deterministic number of steps:
+    // simTime_ must equal updateCount_ * dt at all times.
+    (void)dt;
+    ++updateCount_;
+    simTime_ += dt;
 }
 
 void Game::render()
@@ -115,6 +150,36 @@ void Game::render()
     SDL_RenderDrawRect(renderer_, &border);
 
     SDL_RenderPresent(renderer_);
+}
+
+void Game::reportStats()
+{
+    // Temporary debug overlay (Stage 2): console line every second while
+    // enabled. Becomes an on-screen overlay in Stage 3 (text rendering).
+    // Enabled automatically in smoke mode so headless runs are observable.
+    if (!statsEnabled_ && !inSmokeMode()) {
+        return;
+    }
+
+    const double now = clock_.elapsed();
+    if (now - lastReportSeconds_ < 1.0) {
+        return;
+    }
+
+    const double window = now - lastReportSeconds_;
+    const double fps = static_cast<double>(framesSinceReport_) / window;
+    const double updatesPerSecond =
+        static_cast<double>(updatesSinceReport_) / window;
+
+    std::fprintf(stderr,
+                 "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
+                 "sim_time=%.1fs entities=%d\n",
+                 fps, lastFrameSeconds_ * 1000.0, updatesPerSecond, simTime_,
+                 0 /* entity count; no gameplay objects yet */);
+
+    lastReportSeconds_ = now;
+    framesSinceReport_ = 0;
+    updatesSinceReport_ = 0;
 }
 
 void Game::shutdown()

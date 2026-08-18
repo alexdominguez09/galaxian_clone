@@ -86,6 +86,8 @@ render()
 - All movement is `position += velocity * dt` in fixed updates; nothing is
   scaled by render frame rate.
 - Debug overlay (F2): FPS, frame time, update count, entity count.
+  Stage 2 implements this as a console line (one per second); Stage 3
+  replaces it with an on-screen overlay once text rendering exists.
 
 ### 3.2 Renderer (Stage 3)
 

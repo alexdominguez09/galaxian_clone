@@ -1,0 +1,88 @@
+#pragma once
+
+#include <SDL2/SDL.h>
+
+#include "Constants.hpp"
+#include "GameClock.hpp"
+#include "TimestepController.hpp"
+
+namespace galaxian {
+
+// Game — top-level application object.
+//
+// Owns: initialization, main loop, event processing, update, rendering,
+// shutdown. Stage 2 adds deterministic timing: the loop feeds real frame
+// time into a TimestepController and runs a fixed number of 1/60 s
+// simulation steps per frame (docs/architecture.md §3.1).
+class Game {
+public:
+    Game() = default;
+    ~Game();
+
+    Game(const Game&) = delete;
+    Game& operator=(const Game&) = delete;
+    Game(Game&&) = delete;
+    Game& operator=(Game&&) = delete;
+
+    // SDL init + window + renderer. Returns false (with a diagnostic on
+    // stderr) if any of them fail.
+    bool initialize();
+
+    // Main loop: processEvents -> fixed updates -> render, until quit.
+    void run();
+
+    // Releases all resources. Safe to call more than once, and safe to call
+    // if initialize() failed.
+    void shutdown();
+
+    // Render with/without vertical sync (test hook for refresh-rate
+    // independence runs; see docs/test_plan.md Stage 2).
+    void setVsync(bool enabled) { vsync_ = enabled; }
+
+    // Test hooks (docs/test_plan.md): exit automatically after `frames`
+    // rendered frames, or after `seconds` of wall time. A summary line is
+    // printed to stdout on exit when either is active.
+    void setSmokeFrames(int frames) { smokeFrames_ = frames; }
+    void setSmokeSeconds(double seconds) { smokeSeconds_ = seconds; }
+
+    bool inSmokeMode() const { return smokeFrames_ > 0 || smokeSeconds_ > 0.0; }
+    int smokeResultFrames() const { return frameCount_; }
+    int smokeResultUpdates() const { return updateCount_; }
+    double smokeResultSimTime() const { return simTime_; }
+    double smokeResultWallTime() const { return wallTime_; }
+
+private:
+    void processEvents();
+    void fixedUpdate(double dt);
+    void render();
+    void reportStats();
+
+    bool initialized_ = false;
+    bool running_ = false;
+
+    SDL_Window* window_ = nullptr;
+    SDL_Renderer* renderer_ = nullptr;
+    bool vsync_ = true;
+
+    GameClock clock_;
+    TimestepController timestep_{kFixedDeltaSeconds, kMaxCatchUpSteps};
+
+    // Debug stats. Toggled with F2. Console-based until Stage 3 provides
+    // on-screen text rendering (docs/architecture.md §3.1).
+    bool statsEnabled_ = false;
+    double lastReportSeconds_ = 0.0;
+    int framesSinceReport_ = 0;
+    int updatesSinceReport_ = 0;
+    double lastFrameSeconds_ = 0.0;
+
+    // Frame/update counters (diagnostics + smoke summary).
+    int frameCount_ = 0;
+    int updateCount_ = 0;
+    double simTime_ = 0.0;
+    double wallTime_ = 0.0;
+
+    int smokeFrames_ = 0;
+    double smokeSeconds_ = 0.0;
+};
+
+}  // namespace galaxian

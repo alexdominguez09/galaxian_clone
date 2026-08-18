@@ -25,12 +25,19 @@ include(CompilerFlags)
 
 find_package(SDL2 REQUIRED)
 
+# Core library: timing + shared types. Kept separate so unit tests can link
+# the pure-logic parts without the full application.
+add_library(galaxian_core STATIC
+    src/core/GameClock.cpp
+    src/core/TimestepController.cpp
+)
+target_include_directories(galaxian_core PUBLIC src)
+target_link_libraries(galaxian_core PUBLIC SDL2::SDL2)
+
 add_executable(galaxian
     src/main.cpp
-    src/Game.cpp
+    src/core/Game.cpp
 )
-
-target_include_directories(galaxian PRIVATE src)
-target_link_libraries(galaxian PRIVATE SDL2::SDL2)
+target_link_libraries(galaxian PRIVATE galaxian_core)
 
 add_subdirectory(tests)
