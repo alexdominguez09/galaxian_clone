@@ -7,6 +7,7 @@
 #include "TimestepController.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
+#include "input/InputManager.hpp"
 
 namespace galaxian {
 
@@ -17,7 +18,9 @@ namespace galaxian {
 // frame time into a TimestepController and runs a fixed number of 1/60 s
 // simulation steps per frame (docs/architecture.md §3.1). Stage 3 routes
 // all drawing through the Renderer subsystem and shows the DevScene test
-// scene until gameplay rendering exists (Stage 5+).
+// scene until gameplay rendering exists (Stage 5+). Stage 4 routes all
+// keyboard input through the InputManager using named Actions: the game
+// loop no longer references SDL key constants (docs/architecture.md §3.3).
 class Game {
 public:
     Game() = default;
@@ -65,6 +68,10 @@ private:
     bool running_ = false;
 
     Renderer renderer_;
+    // Stage 4: all keyboard input flows through the InputManager as named
+    // Actions. Initialized after the renderer (which brings up SDL) and used
+    // by processEvents()/the demo; holds no SDL resources of its own.
+    InputManager input_;
     DevScene devScene_;
     bool vsync_ = true;
 

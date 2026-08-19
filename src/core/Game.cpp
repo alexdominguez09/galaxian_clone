@@ -15,6 +15,8 @@ bool Game::initialize()
     if (!renderer_.initialize(kLogicalWidth, kLogicalHeight, vsync_)) {
         return false;
     }
+    // Stage 4: bring up the input layer after SDL (the renderer) is ready.
+    input_.initialize();
     if (!devScene_.initialize(renderer_)) {
         std::fprintf(stderr, "galaxian: dev scene initialization failed\n");
         shutdown();
@@ -47,7 +49,19 @@ void Game::run()
         }
         updatesSinceReport_ += steps;
 
+        // Stage 4 input demo (dev aid): advance once per frame, reading the
+        // input edges set by pollEvents() before endFrame() clears them. It
+        // uses the real frame delta because it is a dev aid, not the
+        // fixed-timestep gameplay simulation that lands in Stage 5+.
+        devScene_.update(frameDelta, input_);
+
         render();
+
+        // Clear per-frame input edges (once per frame;
+        // docs/architecture.md §3.3). Done after render so the on-screen
+        // action table reflects this frame's presses/releases.
+        input_.endFrame();
+
         ++frameCount_;
         ++framesSinceReport_;
 
@@ -66,27 +80,20 @@ void Game::run()
 
 void Game::processEvents()
 {
-    SDL_Event event;
-    while (SDL_PollEvent(&event) != 0) {
-        switch (event.type) {
-        case SDL_QUIT:
-            running_ = false;
-            break;
-        case SDL_KEYDOWN:
-            switch (event.key.keysym.sym) {
-            case SDLK_ESCAPE:
-                running_ = false;
-                break;
-            case SDLK_F2:
-                statsEnabled_ = !statsEnabled_;
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-        }
+    // Stage 4: all keyboard input is routed through the InputManager as
+    // named Actions (docs/architecture.md §3.3); the game loop no longer
+    // references SDL key constants.
+    if (input_.pollEvents()) {
+        running_ = false;  // SDL_QUIT (window close)
+    }
+    if (input_.wasPressed(Action::DebugOverlay)) {
+        statsEnabled_ = !statsEnabled_;
+    }
+    if (input_.wasPressed(Action::Pause)) {
+        // Escape. The Stage 17 state machine turns this into pause/resume;
+        // until then the single dev scene acts as the title, so Escape quits
+        // (preserving the Stage 1 "Escape exits with code 0" acceptance).
+        running_ = false;
     }
 }
 

@@ -43,11 +43,16 @@ Manual:
 - [x] Text renders at expected positions
 
 ### Stage 4 — Input
-- [ ] `wasPressed` true for exactly one frame on keydown
-- [ ] `isHeld` true while held, false after release
-- [ ] `wasReleased` true for exactly one frame on keyup
-- [ ] Simultaneous left+right handled (last-pressed-wins or cancel — spec'd)
-- [ ] No `SDLK_*` in gameplay/ (grep check in CI)
+- [x] `wasPressed` true for exactly one frame on keydown
+- [x] `isHeld` true while held, false after release
+- [x] `wasReleased` true for exactly one frame on keyup
+- [x] Simultaneous left+right handled (last-pressed-wins or cancel — spec'd)
+- [x] No `SDLK_*` in gameplay/ (grep check in CI)
+- [x] SDL key events drive the state machine; SDL_QUIT reported; focus loss
+      releases all keys; key auto-repeat does not retrigger a press
+- [x] Default bindings match spec §4; `setBinding` remaps; unbound keys inert
+- [x] End-to-end: the Stage 4 dev-scene demo moves the player and fires in
+      response to input (pixel-verified headlessly)
 
 ### Stage 5 — Player
 - [ ] Player cannot move left of x=0 (clamped)

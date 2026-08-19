@@ -110,15 +110,43 @@ render()
 ### 3.3 InputManager (Stage 4)
 
 ```cpp
-enum class Action { MoveLeft, MoveRight, Fire, Pause, Start,
-                    DebugCollision, DebugOverlay };
-input.isHeld(Action::MoveLeft);
-input.wasPressed(Action::Fire);
-input.wasReleased(Action::MoveRight);
+enum class Action { MoveLeft, MoveRight, Fire, Start, Pause,
+                    DebugCollision, DebugOverlay, Count };
+input.isHeld(Action::MoveLeft);     // level: true while any bound key is down
+input.wasPressed(Action::Fire);     // edge: true for exactly one frame
+input.wasReleased(Action::MoveRight); // edge: true for exactly one frame
 ```
 
-- Built from SDL keyboard events each frame; exposes per-frame
-  pressed/held/released sets. Bindings are data (a table), not code.
+- **Actions, not keys.** Gameplay sees `Action` only; the `SDLK_*` → `Action`
+  mapping is a data table (default bindings from spec §4, overridable with
+  `setBinding`). `src/input/Actions.hpp` is SDL-free so it can be included
+  anywhere; `InputManager` is the only place that touches SDL key events.
+- **Frame protocol** (driven by `Game::run`):
+  ```text
+  input.pollEvents()   // drain SDL events → update held/pressed/released
+  ... read input (isHeld / wasPressed / wasReleased) during the frame ...
+  input.endFrame()     // clear the pressed/released edge sets (once/frame)
+  ```
+  `pollEvents()` returns `true` on `SDL_QUIT`. `endFrame()` is called exactly
+  once per frame, **after** all input has been read, so an edge is visible for
+  exactly one frame.
+- **Transition semantics.** `pressed_` is set when an action's held state goes
+  false→true; `released_` when it goes true→false. A key-down for an already
+  held action is ignored (no re-trigger). This is what makes `wasPressed` a
+  clean single-frame edge even under OS key auto-repeat (repeat events are
+  dropped).
+- **Multi-key bindings.** An action with several bound keys is held while any
+  one is down; it is released only when the last one is let go. Pressing a
+  second key of the same action does not re-press.
+- **Simultaneous left+right.** Both actions report held; the gameplay layer
+  resolves the tie as **cancel** (net-zero movement) — the input layer reports
+  the raw state and does not pick a winner.
+- **Focus loss** (`SDL_WINDOWEVENT_FOCUS_LOST`) releases all keys so nothing
+  stays "held" while the window is unfocused.
+- **Headless-safe.** `SDL_PollEvent` is only called when `SDL_INIT_VIDEO` is
+  up; otherwise injected events (`injectKeyDown`/`injectKeyUp`, test hooks)
+  drive the same state machine, so the whole layer is unit-testable with no
+  display.
 
 ### 3.4 Projectiles (Stage 6)
 

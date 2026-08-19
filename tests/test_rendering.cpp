@@ -12,6 +12,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -21,6 +22,8 @@
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
+#include "input/Actions.hpp"
+#include "input/InputManager.hpp"
 
 using namespace galaxian;
 
@@ -28,8 +31,24 @@ namespace {
 
 void useDummyVideoDriver() { ::setenv("SDL_VIDEODRIVER", "dummy", 1); }
 
-// Reads the framebuffer back as ARGB8888 (SDL2 has no RenderReadSurface;
-// the surface takes ownership of the SDL_malloc'd buffer).
+// The dummy video driver emits spurious window events (including
+// FOCUS_LOST) as the window is shown and frames are presented. InputManager
+// correctly treats FOCUS_LOST as "release all keys", so tests that inject
+// synthetic key events must first drain these stale window events, or the
+// just-injected key would be immediately released.
+void drainSdlEvents()
+{
+    SDL_Event ev;
+    while (SDL_PollEvent(&ev) != 0) {
+        // discard
+    }
+}
+
+// Reads the framebuffer back as ARGB8888 (SDL2 has no RenderReadSurface).
+// Returns a SDL-managed surface: SDL_FreeSurface releases everything. The
+// pixel buffer is copied into the surface because a surface created with
+// SDL_CreateRGBSurfaceWithFormatFrom is pre-allocated and SDL will NOT free
+// its pixel data (see the SDL2 docs), which would leak under ASan.
 SDL_Surface* readback(SDL_Renderer* renderer)
 {
     int w = 0;
@@ -51,11 +70,19 @@ SDL_Surface* readback(SDL_Renderer* renderer)
         return nullptr;
     }
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        data, w, h, 32, pitch, SDL_PIXELFORMAT_ARGB8888);
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(
+        0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
     if (surface == nullptr) {
         SDL_free(data);
+        return nullptr;
     }
+    for (int y = 0; y < h; ++y) {
+        std::memcpy(static_cast<std::uint8_t*>(surface->pixels) +
+                        static_cast<std::size_t>(y) * surface->pitch,
+                    data + static_cast<std::size_t>(y) * pitch,
+                    static_cast<std::size_t>(w) * 4);
+    }
+    SDL_free(data);
     return surface;
 }
 
@@ -477,4 +504,66 @@ TEST_CASE("renderer: shutdown is idempotent", "[rendering]")
     renderer.shutdown();
     renderer.shutdown();  // must not crash
     CHECK_FALSE(renderer.initialized());
+}
+
+TEST_CASE("dev scene: Stage 4 input demo moves the player and fires",
+          "[input][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+    InputManager input;
+
+    const float dt = 1.0f / 60.0f;
+
+    // Initial: player centered at x=224; the base pixel (224, 535) is cyan.
+    scene.draw(renderer);
+    renderer.present();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        SDL_FreeSurface(frame);
+    }
+
+    // Hold MoveLeft for 10 frames: the player moves ~36.7 px left.
+    drainSdlEvents();  // drop spurious window events from setup/present
+    input.injectKeyDown(SDLK_LEFT);
+    input.pollEvents();
+    for (int i = 0; i < 10; ++i) {
+        scene.update(dt, input);
+        input.endFrame();
+    }
+    scene.draw(renderer);
+    renderer.present();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // The original center is no longer the player (it moved left)...
+        CHECK_FALSE(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        // ...and the new position (~x=187) is.
+        CHECK(isColor(pixelAt(frame, 187, 535), colors::kPlayerCyan));
+        SDL_FreeSurface(frame);
+    }
+
+    // Fire: a single press lights the projectile flash above the player.
+    drainSdlEvents();  // drop spurious window events from the present above
+    input.injectKeyUp(SDLK_LEFT);
+    input.injectKeyDown(SDLK_SPACE);
+    input.pollEvents();
+    scene.update(dt, input);
+    input.endFrame();
+    scene.draw(renderer);
+    renderer.present();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // Bullet (4x10) is drawn at (centerX - 2, 506); center is ~187 now.
+        CHECK(isColor(pixelAt(frame, 187, 510), colors::kBullet));
+        SDL_FreeSurface(frame);
+    }
+
+    renderer.shutdown();
 }
