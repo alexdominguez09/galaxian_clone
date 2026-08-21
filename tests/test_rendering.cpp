@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "core/Types.hpp"
+#include "gameplay/Player.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
@@ -474,12 +475,14 @@ TEST_CASE("dev scene: renders all elements", "[rendering]")
     CHECK(isColor(pixelAt(frame, 0, 575), colors::kBorder));
     // Interior background (a point away from all sprites/text/bullets).
     CHECK(isColor(pixelAt(frame, 224, 350), colors::kBlack));
-    // Player triangle at (212, 520), 24x16: base row is filled.
-    CHECK(isColor(pixelAt(frame, 212 + 12, 520 + 15), colors::kPlayerCyan));
     // First enemy (commander, red) at (80, 60): center of the 24x24 square.
     CHECK(isColor(pixelAt(frame, 80 + 12, 60 + 12), colors::kEnemyRed));
     // Bullet rectangle at (100, 400), 4x10.
     CHECK(isColor(pixelAt(frame, 101, 405), colors::kBullet));
+    // Stage 5: the player is no longer part of the dev scene (it is the real
+    // gameplay Player, owned and drawn by Game). The spot where the Stage 4
+    // demo player used to be is now plain background.
+    CHECK(isColor(pixelAt(frame, 212 + 12, 520 + 15), colors::kBlack));
     SDL_FreeSurface(frame);
     renderer.shutdown();
 }
@@ -506,21 +509,56 @@ TEST_CASE("renderer: shutdown is idempotent", "[rendering]")
     CHECK_FALSE(renderer.initialized());
 }
 
-TEST_CASE("dev scene: Stage 4 input demo moves the player and fires",
-          "[input][rendering][sdl]")
+// Stage 5 end-to-end (replaces the Stage 4 input-demo test): the real
+// gameplay Player, driven by the InputManager's named Actions the same way
+// Game does, renders at the spec start position, moves when MoveLeft is
+// held, and emits a fire event on a Fire press. Pixel-verified headlessly.
+TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
+          "[player][input][rendering][sdl]")
 {
     useDummyVideoDriver();
     Renderer renderer;
     REQUIRE(renderer.initialize(448, 576, false));
     DevScene scene;
     REQUIRE(scene.initialize(renderer));
+    const Texture* playerTex = renderer.texture(DevArt::kPlayer);
+    REQUIRE(playerTex != nullptr);
+
+    Player player;
     InputManager input;
+    const double dt = 1.0 / 60.0;
 
-    const float dt = 1.0f / 60.0f;
+    // One simulated Game frame, mirroring Game::run() (docs/architecture.md
+    // §3.3): poll input, translate to the Player's net held direction and
+    // the Fire press edge (updateInputState), step the Player and consume the
+    // edge (fixedUpdate), then clear the edges (endFrame).
+    auto stepFrame = [&]() {
+        input.pollEvents();
+        float dir = 0.0f;
+        if (input.isHeld(Action::MoveRight)) {
+            dir += 1.0f;
+        }
+        if (input.isHeld(Action::MoveLeft)) {
+            dir -= 1.0f;
+        }
+        player.update(dt, dir);
+        if (input.wasPressed(Action::Fire) && player.alive()) {
+            player.fire();
+        }
+        input.endFrame();
+    };
+    // Mirrors Game::render(): the test scene, then the real Player on top.
+    auto drawFrame = [&]() {
+        scene.draw(renderer);
+        if (player.alive()) {
+            renderer.drawSprite(*playerTex, player.bounds().position());
+        }
+        renderer.present();
+    };
 
-    // Initial: player centered at x=224; the base pixel (224, 535) is cyan.
-    scene.draw(renderer);
-    renderer.present();
+    // Initial: player centered at (224, 528); the triangle base pixel
+    // (224, 535) is cyan.
+    drawFrame();
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
@@ -531,13 +569,10 @@ TEST_CASE("dev scene: Stage 4 input demo moves the player and fires",
     // Hold MoveLeft for 10 frames: the player moves ~36.7 px left.
     drainSdlEvents();  // drop spurious window events from setup/present
     input.injectKeyDown(SDLK_LEFT);
-    input.pollEvents();
     for (int i = 0; i < 10; ++i) {
-        scene.update(dt, input);
-        input.endFrame();
+        stepFrame();
     }
-    scene.draw(renderer);
-    renderer.present();
+    drawFrame();
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
@@ -548,22 +583,18 @@ TEST_CASE("dev scene: Stage 4 input demo moves the player and fires",
         SDL_FreeSurface(frame);
     }
 
-    // Fire: a single press lights the projectile flash above the player.
+    // Release left, press Fire: a single press emits exactly one fire event.
     drainSdlEvents();  // drop spurious window events from the present above
     input.injectKeyUp(SDLK_LEFT);
     input.injectKeyDown(SDLK_SPACE);
-    input.pollEvents();
-    scene.update(dt, input);
-    input.endFrame();
-    scene.draw(renderer);
-    renderer.present();
-    {
-        SDL_Surface* frame = readback(renderer.sdlRenderer());
-        REQUIRE(frame != nullptr);
-        // Bullet (4x10) is drawn at (centerX - 2, 506); center is ~187 now.
-        CHECK(isColor(pixelAt(frame, 187, 510), colors::kBullet));
-        SDL_FreeSurface(frame);
+    stepFrame();
+    CHECK(player.fireCount() == 1);
+
+    // Keep holding Fire: no further fire events (press edge only).
+    for (int i = 0; i < 5; ++i) {
+        stepFrame();
     }
+    CHECK(player.fireCount() == 1);
 
     renderer.shutdown();
 }

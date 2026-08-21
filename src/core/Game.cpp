@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#include "graphics/DevArt.hpp"
+
 namespace galaxian {
 
 Game::~Game() { shutdown(); }
@@ -19,6 +21,14 @@ bool Game::initialize()
     input_.initialize();
     if (!devScene_.initialize(renderer_)) {
         std::fprintf(stderr, "galaxian: dev scene initialization failed\n");
+        shutdown();
+        return false;
+    }
+    // Stage 5: the dev scene's DevArt::createAll() registered the dev
+    // textures; grab the player sprite (24x16) for drawing the real Player.
+    playerTexture_ = renderer_.texture(DevArt::kPlayer);
+    if (playerTexture_ == nullptr) {
+        std::fprintf(stderr, "galaxian: player texture unavailable\n");
         shutdown();
         return false;
     }
@@ -43,17 +53,20 @@ void Game::run()
         const double frameDelta = clock_.frameDelta();
         lastFrameSeconds_ = frameDelta;
 
+        // Stage 5: read this frame's input once (before the fixed updates)
+        // so the Fire press edge is consumed at most once per frame.
+        updateInputState();
+
         const int steps = timestep_.advance(frameDelta);
         for (int i = 0; i < steps; ++i) {
             fixedUpdate(timestep_.dt());
         }
         updatesSinceReport_ += steps;
 
-        // Stage 4 input demo (dev aid): advance once per frame, reading the
-        // input edges set by pollEvents() before endFrame() clears them. It
-        // uses the real frame delta because it is a dev aid, not the
-        // fixed-timestep gameplay simulation that lands in Stage 5+.
-        devScene_.update(frameDelta, input_);
+        // Dev scene (enemies, text, border, action table). The Stage 4 input
+        // demo that moved a stand-in player is gone: the real Player is
+        // simulated in fixedUpdate() and drawn in render().
+        devScene_.update(input_);
 
         render();
 
@@ -97,21 +110,61 @@ void Game::processEvents()
     }
 }
 
+void Game::updateInputState()
+{
+    // Net horizontal movement from the held level (docs/game_spec.md §4):
+    // right +1, left -1, both held cancel to 0, neither is 0. This is the
+    // spec'd simultaneous-left+right resolution and keeps the Player free of
+    // the InputManager (dependency rule, docs/architecture.md §1).
+    pendingDirection_ = 0.0f;
+    if (input_.isHeld(Action::MoveRight)) {
+        pendingDirection_ += 1.0f;
+    }
+    if (input_.isHeld(Action::MoveLeft)) {
+        pendingDirection_ -= 1.0f;
+    }
+
+    // Fire is a press edge: set once per frame, consumed by the first fixed
+    // step below so a single press fires exactly once even when several
+    // fixed steps run in one frame.
+    if (input_.wasPressed(Action::Fire)) {
+        fireRequested_ = true;
+    }
+}
+
 void Game::fixedUpdate(double dt)
 {
-    // No gameplay yet (Stage 2). Simulation logic lands in Stage 5+.
+    // Stage 5: the first gameplay simulation. The Player moves with the
+    // fixed timestep (frame-rate independent) and fires on the consumed
+    // press edge.
+    player_.update(dt, pendingDirection_);
+    if (fireRequested_) {
+        fireRequested_ = false;  // consume: one press == one fire event
+        if (player_.alive()) {
+            player_.fire();
+            // Stage 5 fire event: a log line (no projectile yet, Stage 6).
+            std::printf("Player fired\n");
+        }
+    }
+
     // These counters prove the loop runs a deterministic number of steps:
     // simTime_ must equal updateCount_ * dt at all times.
-    (void)dt;
     ++updateCount_;
     simTime_ += dt;
 }
 
 void Game::render()
 {
-    // Stage 3 test scene (docs/test_plan.md §1): player sprite, 10 enemy
-    // sprites, text, projectile rectangles, screen border.
+    // Stage 3/4 test scene: enemy sprites, text, projectile rectangles,
+    // screen border, and the Stage 4 action table (dev aid).
     devScene_.draw(renderer_);
+
+    // Stage 5: the real Player (drawn on top of the test scene). The sprite
+    // is 24x16 and coincides with the collision box, so the box's top-left
+    // is the sprite's draw position.
+    if (player_.alive() && playerTexture_ != nullptr) {
+        renderer_.drawSprite(*playerTexture_, player_.bounds().position());
+    }
 
     if (statsEnabled_) {
         char line[64];

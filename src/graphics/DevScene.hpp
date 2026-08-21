@@ -10,24 +10,23 @@ class InputManager;
 
 // Stage 3 test scene (docs/test_plan.md §1, Stage 3):
 //
-//   player sprite, 10 enemy sprites, text, projectile rectangles,
-//   screen border
+//   enemy sprites, text, projectile rectangles, screen border
 //
-// Stage 4 extends it with a small input demo (dev aid, replaced by the real
-// Player in Stage 5): the player sprite follows the MoveLeft/MoveRight
-// Actions, Space (Fire) flashes a projectile, and an on-screen table shows
-// the live held/pressed/released state of every Action. Rendered by Game
-// until gameplay rendering exists (Stage 5+).
+// Stage 4 added a small input demo (a stand-in player that followed the
+// MoveLeft/MoveRight Actions and a fire flash). Stage 5 replaces that
+// stand-in with the real gameplay Player (owned and drawn by Game), so the
+// demo player and fire flash are gone. What remains from Stage 4 is the
+// on-screen action table: a dev aid showing the live held/pressed/released
+// state of every Action, so input can still be verified by eye.
 class DevScene {
 public:
     // Loads dev art into the renderer. Returns false on failure.
     bool initialize(Renderer& renderer);
 
-    // Advances the Stage 4 input demo by one rendered frame. Reads the
-    // named Actions from `input` (never SDL keys) and moves the player /
-    // triggers the fire flash. Frame-rate dependent by design: this is a
-    // dev aid, not the fixed-timestep gameplay simulation.
-    void update(double frameDeltaSeconds, const InputManager& input);
+    // Snapshots the input state for the on-screen action table. Called once
+    // per frame by Game. (The Stage 4 demo player movement lived here and is
+    // gone: the real Player is simulated by Game in the fixed-timestep loop.)
+    void update(const InputManager& input);
 
     void draw(Renderer& renderer) const;
 
@@ -37,13 +36,7 @@ private:
         Vector2 position{0.0f, 0.0f};
     };
 
-    const Texture* player_ = nullptr;
-    const Texture* bullet_ = nullptr;
     EnemySprite enemies_[10] = {};
-
-    // Stage 4 input demo state.
-    float demoPlayerCenterX_ = 224.0f;  // spec §5 start center
-    double fireFlashSeconds_ = 0.0;
 
     // Snapshot of the input state, captured in update() and rendered by
     // draw() as an on-screen action table (dev aid for manual verification).

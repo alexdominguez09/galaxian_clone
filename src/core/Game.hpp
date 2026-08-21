@@ -5,6 +5,7 @@
 #include "Constants.hpp"
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
+#include "gameplay/Player.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -21,6 +22,9 @@ namespace galaxian {
 // scene until gameplay rendering exists (Stage 5+). Stage 4 routes all
 // keyboard input through the InputManager using named Actions: the game
 // loop no longer references SDL key constants (docs/architecture.md §3.3).
+// Stage 5 adds the first gameplay object, the Player: it is updated in the
+// fixed-timestep simulation from the named Actions (movement is the held
+// level, fire is the pressed edge) and drawn each frame.
 class Game {
 public:
     Game() = default;
@@ -60,6 +64,12 @@ public:
 
 private:
     void processEvents();
+    // Reads this frame's input once (after pollEvents, before the fixed
+    // updates): the held movement level becomes pendingDirection_ and a Fire
+    // press edge sets fireRequested_. Done once per frame so the pressed
+    // edge is consumed at most once even when several fixed steps run in the
+    // same frame (docs/architecture.md §3.3).
+    void updateInputState();
     void fixedUpdate(double dt);
     void render();
     void reportStats();
@@ -73,6 +83,18 @@ private:
     // by processEvents()/the demo; holds no SDL resources of its own.
     InputManager input_;
     DevScene devScene_;
+    // Stage 5: the first gameplay object. Updated in fixedUpdate() from the
+    // named Actions; drawn in render(). The dev-art player texture (24x16,
+    // coinciding with the collision box) is looked up from the renderer's
+    // cache after the dev scene registers it.
+    Player player_;
+    const Texture* playerTexture_ = nullptr;
+    // Per-frame input, read once in updateInputState() and consumed by the
+    // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
+    // (left/right cancel); fireRequested_ is the Fire press edge for this
+    // frame (consumed by the first fixed step that runs).
+    float pendingDirection_ = 0.0f;
+    bool fireRequested_ = false;
     bool vsync_ = true;
 
     GameClock clock_;

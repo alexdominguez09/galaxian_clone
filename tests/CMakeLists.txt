@@ -34,6 +34,7 @@ add_executable(galaxian_tests
     test_types.cpp
     test_rendering.cpp
     test_input.cpp
+    test_player.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE
     galaxian_core

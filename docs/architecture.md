@@ -186,11 +186,27 @@ struct Projectile {
 
 ### 3.7 Player (Stages 5, 15)
 
-- Horizontal movement, screen-clamped, velocity-based.
-- State machine: `Alive → Dying → Respawning → Invulnerable → Alive`,
-  `GameOver` terminal for the run.
-- Death is idempotent per frame: multiple collisions in one frame remove
-  exactly one life.
+Stage 5 implements the prototype (`gameplay/Player.{hpp,cpp}`):
+
+- **SDL-free** (dependency rule, §1): the Player never sees SDL keys or the
+  `InputManager`. Movement is driven by a `direction` in `{-1, 0, +1}` that
+  `Game` computes from the named Actions (left/right cancel to 0, spec §4);
+  firing is a plain `fire()` command.
+- **Horizontal-only, velocity-based, screen-clamped** (spec §5):
+  `position += direction * kSpeed * dt` with the fixed `dt`
+  (§3.1), so motion is frame-rate independent. `kSpeed = 220 px/s`,
+  start center `(224, 528)`, collision box `24×16` centered on the sprite
+  (`bounds()`); the center x is clamped to `[12, 436]` so the box never
+  leaves the screen. y is never changed.
+- **Fire event:** `fire()` increments a fire count (the event); `Game` logs
+  `"Player fired"`. No projectile yet (Stage 6). A dead player neither moves
+  nor fires.
+- **State:** minimal `PlayerState { Alive, Dead }` with `kill()`/`respawn()`.
+
+Stage 15 expands this to the full state machine:
+`Alive → Dying → Respawning → Invulnerable → Alive`, `GameOver` terminal for
+the run, with lives, a respawn timer, and invulnerability. Death is idempotent
+per frame: multiple collisions in one frame remove exactly one life.
 
 ### 3.8 Waves and scoring (Stages 9, 16, 18)
 

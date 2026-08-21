@@ -37,6 +37,7 @@ add_library(galaxian_core STATIC
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp
     src/input/InputManager.cpp
+    src/gameplay/Player.cpp
 )
 target_include_directories(galaxian_core PUBLIC src)
 target_link_libraries(galaxian_core PUBLIC

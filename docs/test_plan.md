@@ -55,12 +55,14 @@ Manual:
       response to input (pixel-verified headlessly)
 
 ### Stage 5 — Player
-- [ ] Player cannot move left of x=0 (clamped)
-- [ ] Player cannot move right of right edge (clamped)
-- [ ] Movement distance = speed × dt over N steps (exact)
-- [ ] Initial position matches spec (224, 528)
-- [ ] Fire command emits a fire event (log) — no projectile yet
-- [ ] Frame-rate independence: same position after 10 s sim at 30 vs 120 Hz
+- [x] Player cannot move left of x=0 (clamped)
+- [x] Player cannot move right of right edge (clamped)
+- [x] Movement distance = speed × dt over N steps (exact)
+- [x] Initial position matches spec (224, 528)
+- [x] Fire command emits a fire event (log) — no projectile yet
+- [x] Frame-rate independence: same position after 10 s sim at 30 vs 120 Hz
+- [x] End-to-end: input drives the real Player (movement + fire, pixel-verified
+      headlessly)
 Manual:
 - [ ] Smooth movement, correct feel, stays in bounds
 
