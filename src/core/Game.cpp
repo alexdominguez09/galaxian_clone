@@ -24,11 +24,13 @@ bool Game::initialize()
         shutdown();
         return false;
     }
-    // Stage 5: the dev scene's DevArt::createAll() registered the dev
-    // textures; grab the player sprite (24x16) for drawing the real Player.
+    // Stage 5/6: the dev scene's DevArt::createAll() registered the dev
+    // textures; grab the player sprite (24x16) and the bullet sprite (4x10,
+    // coinciding with the projectile box) for drawing the gameplay objects.
     playerTexture_ = renderer_.texture(DevArt::kPlayer);
-    if (playerTexture_ == nullptr) {
-        std::fprintf(stderr, "galaxian: player texture unavailable\n");
+    bulletTexture_ = renderer_.texture(DevArt::kBullet);
+    if (playerTexture_ == nullptr || bulletTexture_ == nullptr) {
+        std::fprintf(stderr, "galaxian: dev texture unavailable\n");
         shutdown();
         return false;
     }
@@ -134,18 +136,23 @@ void Game::updateInputState()
 
 void Game::fixedUpdate(double dt)
 {
-    // Stage 5: the first gameplay simulation. The Player moves with the
-    // fixed timestep (frame-rate independent) and fires on the consumed
-    // press edge.
+    // Stage 5/6: the gameplay simulation. The Player moves with the fixed
+    // timestep (frame-rate independent) and fires on the consumed press
+    // edge; the ProjectileManager moves and culls the live bullets.
     player_.update(dt, pendingDirection_);
     if (fireRequested_) {
         fireRequested_ = false;  // consume: one press == one fire event
         if (player_.alive()) {
             player_.fire();
-            // Stage 5 fire event: a log line (no projectile yet, Stage 6).
-            std::printf("Player fired\n");
+            // Stage 6: the fire event asks the projectile system for a
+            // bullet. The manager enforces the spec §5 rules (0.35 s
+            // cooldown, max 2 simultaneous); a rejected shot spawns nothing.
+            if (projectiles_.tryFirePlayer(player_)) {
+                std::printf("Player fired\n");
+            }
         }
     }
+    projectiles_.update(dt);
 
     // These counters prove the loop runs a deterministic number of steps:
     // simTime_ must equal updateCount_ * dt at all times.
@@ -166,6 +173,15 @@ void Game::render()
         renderer_.drawSprite(*playerTexture_, player_.bounds().position());
     }
 
+    // Stage 6: the live projectiles. The 4x10 bullet sprite coincides with
+    // the projectile box, and the box's top-left is the draw position.
+    if (bulletTexture_ != nullptr) {
+        for (int i = 0; i < projectiles_.count(); ++i) {
+            renderer_.drawSprite(*bulletTexture_,
+                                 projectiles_.projectile(i).position);
+        }
+    }
+
     if (statsEnabled_) {
         char line[64];
         std::snprintf(line, sizeof(line), "FPS: %.1f  UPD/S: %.1f", fps_,
@@ -174,6 +190,10 @@ void Game::render()
         std::snprintf(line, sizeof(line), "SIM: %.3f s  STEP: %.1f ms",
                       simTime_, timestep_.dt() * 1000.0);
         renderer_.drawText(line, {16.0f, 496.0f}, colors::kGreen);
+        std::snprintf(line, sizeof(line), "ENT: %d (proj %d)",
+                      (player_.alive() ? 1 : 0) + projectiles_.count(),
+                      projectiles_.count());
+        renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
     }
 
     renderer_.present();
@@ -198,7 +218,8 @@ void Game::reportStats()
                      "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
                      "sim_time=%.1fs entities=%d\n",
                      fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
-                     simTime_, 0 /* entity count; no gameplay objects yet */);
+                     simTime_,
+                     (player_.alive() ? 1 : 0) + projectiles_.count());
     }
 
     lastReportSeconds_ = now;

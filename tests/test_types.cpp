@@ -27,6 +27,8 @@ TEST_CASE("Rect edges and helpers", "[types]")
     REQUIRE(r.bottom() == 60.0f);
     REQUIRE(r.position() == Vector2{10.0f, 20.0f});
     REQUIRE(r.size() == Vector2{30.0f, 40.0f});
+    REQUIRE(r == Rect{10.0f, 20.0f, 30.0f, 40.0f});
+    REQUIRE(r != Rect{10.0f, 20.0f, 30.0f, 41.0f});
 }
 
 TEST_CASE("Color comparison and palette defaults", "[types]")

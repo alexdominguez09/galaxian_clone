@@ -162,6 +162,30 @@ struct Projectile {
 - Single manager for both owners; spawn/move/cull/cooldown.
 - Pool or vector with swap-remove; no per-frame allocations in steady state.
 
+Stage 6 implements the player side (`gameplay/Projectile.{hpp,cpp}`):
+
+- **SDL-free** (dependency rule, §1): `ProjectileManager` is pure logic,
+  driven by the fixed `dt` (§3.1). `Game` calls `tryFirePlayer(player)` on
+  the consumed fire edge and `update(dt)` once per fixed step.
+- **`position` is the box's top-left corner** (the `Rect` convention), so
+  `position` is also the sprite draw position. The dev bullet is `4×10`
+  (`Projectile::kWidth/kHeight`), coinciding with the box.
+- **Player fire (`tryFirePlayer`):** spawns a bullet directly above the
+  player (center-x aligned, bullet bottom edge touching the player's top
+  edge) with velocity `(0, -480)` (`kPlayerSpeed`, spec §5). Rejected (and
+  nothing spawned) when the player is dead, the cooldown is active, the
+  player already has `kMaxPlayerProjectiles = 2` bullets on screen, or the
+  pool is full. The `0.35 s` cooldown (`kFireCooldownSeconds`) is set only
+  on a successful spawn and is a per-owner timer decremented in `update`.
+- **Culling:** a player bullet is removed once its box is fully above the
+  top edge (`bottom() < 0`); an enemy bullet once fully below the bottom
+  edge (`top() > kLogicalHeight`). Strict inequalities: a partially visible
+  bullet is never culled. Enemy fire itself lands in Stage 14, but the
+  `Enemy` owner and its cull edge are already supported.
+- **Pool:** fixed `kMaxProjectiles = 16` array with swap-remove; zero heap
+  allocation, so firing 10 000 shots returns the count to 0 with stable
+  memory (verified under ASan/UBSan).
+
 ### 3.5 Collision (Stage 7)
 
 - Pure function: `bool intersects(const Rect& a, const Rect& b)`.

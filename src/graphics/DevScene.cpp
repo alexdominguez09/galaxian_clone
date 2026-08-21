@@ -91,7 +91,7 @@ void DevScene::draw(Renderer& renderer) const
     }
 
     // Text.
-    renderer.drawText("GALAXIAN CLONE - STAGE 5 PLAYER PROTOTYPE", {16.0f, 16.0f},
+    renderer.drawText("GALAXIAN CLONE - STAGE 6 PROJECTILES", {16.0f, 16.0f},
                       colors::kWhite);
     renderer.drawText("PLAYER=TRIANGLE  ENEMIES=SQUARES", {16.0f, 40.0f},
                       colors::kWhite);

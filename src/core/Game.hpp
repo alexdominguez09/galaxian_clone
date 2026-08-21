@@ -6,6 +6,7 @@
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
 #include "gameplay/Player.hpp"
+#include "gameplay/Projectile.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -24,7 +25,11 @@ namespace galaxian {
 // loop no longer references SDL key constants (docs/architecture.md §3.3).
 // Stage 5 adds the first gameplay object, the Player: it is updated in the
 // fixed-timestep simulation from the named Actions (movement is the held
-// level, fire is the pressed edge) and drawn each frame.
+// level, fire is the pressed edge) and drawn each frame. Stage 6 adds the
+// shared Projectile system: a Fire event asks the ProjectileManager to spawn
+// a bullet above the player (cooldown 0.35 s, max 2 simultaneous, spec §5),
+// bullets fly upward at 480 px/s and are culled off-screen, all in the
+// fixed-timestep simulation.
 class Game {
 public:
     Game() = default;
@@ -89,6 +94,13 @@ private:
     // cache after the dev scene registers it.
     Player player_;
     const Texture* playerTexture_ = nullptr;
+    // Stage 6: the shared projectile system (player bullets now, enemy
+    // bullets in Stage 14). Updated in fixedUpdate() and drawn in render();
+    // the dev-art bullet texture (4x10, coinciding with the projectile box)
+    // is looked up from the renderer's cache after the dev scene registers
+    // it.
+    ProjectileManager projectiles_;
+    const Texture* bulletTexture_ = nullptr;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

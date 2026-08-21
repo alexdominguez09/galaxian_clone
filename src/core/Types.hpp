@@ -37,6 +37,11 @@ struct Rect {
     constexpr float bottom() const { return y + height; }
     constexpr Vector2 position() const { return {x, y}; }
     constexpr Vector2 size() const { return {width, height}; }
+
+    constexpr bool operator==(const Rect& o) const {
+        return x == o.x && y == o.y && width == o.width && height == o.height;
+    }
+    constexpr bool operator!=(const Rect& o) const { return !(*this == o); }
 };
 
 // 8-bit-per-channel color.

@@ -64,15 +64,18 @@ Manual:
 - [x] End-to-end: input drives the real Player (movement + fire, pixel-verified
       headlessly)
 Manual:
-- [ ] Smooth movement, correct feel, stays in bounds
+- [x] Smooth movement, correct feel, stays in bounds
 
 ### Stage 6 — Projectiles
-- [ ] Fire spawns a projectile at the player position moving upward
-- [ ] Projectile removed when y < -height
-- [ ] Cooldown: second shot within 0.35 s is rejected
-- [ ] Max 2 simultaneous player projectiles enforced
-- [ ] No leaks: fire 10 000 shots headlessly, active count returns to 0
-- [ ] Stress: continuous fire for 5 simulated minutes — stable memory
+- [x] Fire spawns a projectile at the player position moving upward
+- [x] Projectile removed when y < -height
+- [x] Cooldown: second shot within 0.35 s is rejected
+- [x] Max 2 simultaneous player projectiles enforced
+- [x] No leaks: fire 10 000 shots headlessly, active count returns to 0
+- [x] Stress: continuous fire for 5 simulated minutes — stable memory
+Manual:
+- [x] Firing feel: bullets spawn above the player, cooldown and 2-bullet
+      cap are perceivable, bullets vanish off the top edge
 
 ### Stage 7 — Collision
 - [ ] Overlap detected; no overlap not detected

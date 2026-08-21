@@ -20,6 +20,7 @@
 
 #include "core/Types.hpp"
 #include "gameplay/Player.hpp"
+#include "gameplay/Projectile.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
@@ -595,6 +596,104 @@ TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
         stepFrame();
     }
     CHECK(player.fireCount() == 1);
+
+    renderer.shutdown();
+}
+
+// Stage 6 end-to-end (docs/test_plan.md, Stage 6): Space creates a projectile
+// at the player position, the bullet is drawn moving upward, the 0.35 s
+// cooldown and the 2-bullet cap hold while firing continuously, and the
+// bullets disappear offscreen. Pixel-verified headlessly.
+TEST_CASE("projectiles: fire spawns bullets that fly up and expire (pixels)",
+          "[player][projectile][input][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+    const Texture* playerTex = renderer.texture(DevArt::kPlayer);
+    const Texture* bulletTex = renderer.texture(DevArt::kBullet);
+    REQUIRE(playerTex != nullptr);
+    REQUIRE(bulletTex != nullptr);
+
+    Player player;
+    ProjectileManager projectiles;
+    InputManager input;
+    const double dt = 1.0 / 60.0;
+
+    // One simulated Game frame, mirroring Game::run() (docs/architecture.md
+    // §3.3): poll input, fire on the press edge (the ProjectileManager
+    // enforces the cooldown/max), step the bullets, clear the edges.
+    auto stepFrame = [&]() {
+        input.pollEvents();
+        player.update(dt, 0.0f);
+        if (input.wasPressed(Action::Fire) && player.alive()) {
+            player.fire();
+            projectiles.tryFirePlayer(player);
+        }
+        projectiles.update(dt);
+        input.endFrame();
+    };
+    // Mirrors Game::render(): the dev scene, then the gameplay objects.
+    auto drawFrame = [&]() {
+        scene.draw(renderer);
+        if (player.alive()) {
+            renderer.drawSprite(*playerTex, player.bounds().position());
+        }
+        for (int i = 0; i < projectiles.count(); ++i) {
+            renderer.drawSprite(*bulletTex,
+                                projectiles.projectile(i).position);
+        }
+        renderer.present();
+    };
+
+    // Press Space once: a bullet spawns directly above the player (box
+    // 222..226 x 510..520) and moves 8 px up during the same step, so by
+    // render time its box is 222..226 x 502..512; center pixel (224, 507)
+    // is the bullet color.
+    drainSdlEvents();  // drop spurious window events from setup/present
+    input.injectKeyDown(SDLK_SPACE);
+    stepFrame();
+    CHECK(projectiles.count() == 1);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        CHECK(isColor(pixelAt(frame, 224, 507), colors::kBullet));
+        SDL_FreeSurface(frame);
+    }
+
+    // Mash fire for 60 more frames (a fresh press edge each frame): the
+    // cooldown (0.35 s) and the 2-bullet cap keep at most 2 bullets alive
+    // at any time — and 2 is actually reached, so the cap is not tighter
+    // than the spec.
+    int maxSimultaneous = projectiles.count();
+    for (int i = 0; i < 60; ++i) {
+        input.injectKeyUp(SDLK_SPACE);
+        input.injectKeyDown(SDLK_SPACE);
+        stepFrame();
+        maxSimultaneous = std::max(maxSimultaneous, projectiles.count());
+        CHECK(projectiles.count() <=
+              ProjectileManager::kMaxPlayerProjectiles);
+    }
+    CHECK(maxSimultaneous == ProjectileManager::kMaxPlayerProjectiles);
+    drawFrame();
+
+    // Stop firing and let the remaining bullets fly off the top edge.
+    input.injectKeyUp(SDLK_SPACE);
+    for (int i = 0; i < 90 && projectiles.count() > 0; ++i) {
+        stepFrame();
+    }
+    CHECK(projectiles.count() == 0);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // The spot above the player is plain background again.
+        CHECK(isColor(pixelAt(frame, 224, 515), colors::kBlack));
+        SDL_FreeSurface(frame);
+    }
 
     renderer.shutdown();
 }
