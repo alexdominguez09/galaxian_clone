@@ -91,12 +91,13 @@ void DevScene::draw(Renderer& renderer) const
     }
 
     // Text.
-    renderer.drawText("GALAXIAN CLONE - STAGE 6 PROJECTILES", {16.0f, 16.0f},
+    renderer.drawText("GALAXIAN CLONE - STAGE 7 COLLISION", {16.0f, 16.0f},
                       colors::kWhite);
     renderer.drawText("PLAYER=TRIANGLE  ENEMIES=SQUARES", {16.0f, 40.0f},
                       colors::kWhite);
-    renderer.drawText("LEFT/RIGHT=MOVE  SPACE=FIRE  F2=STATS  ESC=QUIT",
-                      {16.0f, 552.0f}, colors::kWhite);
+    renderer.drawText(
+        "LEFT/RIGHT=MOVE  SPACE=FIRE  F1=BOXES  F2=STATS  ESC=QUIT",
+        {16.0f, 552.0f}, colors::kWhite);
 }
 
 }  // namespace galaxian

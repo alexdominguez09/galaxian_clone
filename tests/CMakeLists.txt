@@ -36,6 +36,7 @@ add_executable(galaxian_tests
     test_input.cpp
     test_player.cpp
     test_projectiles.cpp
+    test_collision.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE
     galaxian_core
@@ -54,5 +55,18 @@ add_test(
             "if [ -d src/gameplay ]; then ! grep -rn 'SDLK_' src/gameplay; else true; fi"
 )
 set_tests_properties(no_sdlk_in_gameplay PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# Stage 7 dependency rule (docs/architecture.md §3.5): rendering code must
+# not contain collision logic — the AABB rule lives in gameplay/Collision.hpp
+# and graphics/ only draws the boxes it is given. Fails if the collision
+# function name appears anywhere in src/graphics.
+add_test(
+    NAME no_collision_in_graphics
+    COMMAND bash -c
+            "if [ -d src/graphics ]; then ! grep -rn 'intersects' src/graphics; else true; fi"
+)
+set_tests_properties(no_collision_in_graphics PROPERTIES
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

@@ -29,7 +29,10 @@ namespace galaxian {
 // shared Projectile system: a Fire event asks the ProjectileManager to spawn
 // a bullet above the player (cooldown 0.35 s, max 2 simultaneous, spec §5),
 // bullets fly upward at 480 px/s and are culled off-screen, all in the
-// fixed-timestep simulation.
+// fixed-timestep simulation. Stage 7 adds the collision system: the AABB
+// rule lives in gameplay/Collision.hpp (SDL-free); this class only owns the
+// F1 (Action::DebugCollision) toggle that makes graphics/DebugOverlay draw
+// 1-px outlines around the live player/projectile boxes.
 class Game {
 public:
     Game() = default;
@@ -115,6 +118,10 @@ private:
     // Debug stats. Toggled with F2: on-screen overlay (Stage 3 text
     // rendering) plus the console line used by smoke runs.
     bool statsEnabled_ = false;
+    // Stage 7: collision-box debug overlay. Toggled with F1
+    // (Action::DebugCollision); when on, render() asks graphics/DebugOverlay
+    // to outline the live player/projectile boxes (docs/architecture.md §3.5).
+    bool collisionDebug_ = false;
     double lastReportSeconds_ = 0.0;
     int framesSinceReport_ = 0;
     int updatesSinceReport_ = 0;

@@ -21,6 +21,7 @@
 #include "core/Types.hpp"
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
+#include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
@@ -692,6 +693,159 @@ TEST_CASE("projectiles: fire spawns bullets that fly up and expire (pixels)",
         REQUIRE(frame != nullptr);
         // The spot above the player is plain background again.
         CHECK(isColor(pixelAt(frame, 224, 515), colors::kBlack));
+        SDL_FreeSurface(frame);
+    }
+
+    renderer.shutdown();
+}
+
+// Stage 7 end-to-end (docs/test_plan.md, Stage 7): F1 (Action::DebugCollision)
+// toggles 1-px outlines around the live player/projectile collision boxes,
+// and the outlines align exactly with the sprites (the boxes coincide with
+// the dev-art sprites). Pixel-verified headlessly, mirroring Game::run() and
+// Game::render() the same way the Stage 5/6 tests do.
+TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
+          "[collision][input][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+    const Texture* playerTex = renderer.texture(DevArt::kPlayer);
+    const Texture* bulletTex = renderer.texture(DevArt::kBullet);
+    REQUIRE(playerTex != nullptr);
+    REQUIRE(bulletTex != nullptr);
+
+    Player player;
+    ProjectileManager projectiles;
+    InputManager input;
+    bool collisionDebug = false;  // mirrors Game::collisionDebug_
+    const double dt = 1.0 / 60.0;
+
+    // One simulated Game frame, mirroring Game::run() (docs/architecture.md
+    // §3.3): poll input, toggle the debug overlay on the DebugCollision press
+    // edge (processEvents), fire on the Fire press edge, step the simulation,
+    // clear the edges.
+    auto stepFrame = [&]() {
+        input.pollEvents();
+        if (input.wasPressed(Action::DebugCollision)) {
+            collisionDebug = !collisionDebug;
+        }
+        player.update(dt, 0.0f);
+        if (input.wasPressed(Action::Fire) && player.alive()) {
+            player.fire();
+            projectiles.tryFirePlayer(player);
+        }
+        projectiles.update(dt);
+        input.endFrame();
+    };
+    // Mirrors Game::render(): the dev scene, the gameplay objects, then the
+    // F1 debug overlay (boxes collected by Game, drawn by DebugOverlay).
+    auto drawFrame = [&]() {
+        scene.draw(renderer);
+        if (player.alive()) {
+            renderer.drawSprite(*playerTex, player.bounds().position());
+        }
+        for (int i = 0; i < projectiles.count(); ++i) {
+            renderer.drawSprite(*bulletTex,
+                                projectiles.projectile(i).position);
+        }
+        if (collisionDebug) {
+            std::vector<Rect> boxes;
+            if (player.alive()) {
+                boxes.push_back(player.bounds());
+            }
+            for (int i = 0; i < projectiles.count(); ++i) {
+                boxes.push_back(projectiles.projectile(i).bounds());
+            }
+            DebugOverlay::drawCollisionBoxes(renderer, boxes,
+                                             colors::kDebugBox);
+        }
+        renderer.present();
+    };
+
+    // Player start: center (224, 528), box (212, 520, 24, 16).
+    const Rect playerBox = player.bounds();
+    REQUIRE(playerBox == Rect{212.0f, 520.0f, 24.0f, 16.0f});
+
+    // Debug off: the player renders (triangle base pixel is cyan) and no
+    // debug-box pixels exist at the box corners.
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        CHECK_FALSE(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 235, 535), colors::kDebugBox));
+        SDL_FreeSurface(frame);
+    }
+
+    // Press F1: the overlay turns on.
+    drainSdlEvents();  // drop spurious window events from setup/present
+    input.injectKeyDown(SDLK_F1);
+    stepFrame();
+    CHECK(collisionDebug);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // Player box outline: all four corners...
+        CHECK(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));  // TL
+        CHECK(isColor(pixelAt(frame, 235, 520), colors::kDebugBox));  // TR
+        CHECK(isColor(pixelAt(frame, 212, 535), colors::kDebugBox));  // BL
+        CHECK(isColor(pixelAt(frame, 235, 535), colors::kDebugBox));  // BR
+        // ...and the edge midpoints (the outline overdraws the sprite).
+        CHECK(isColor(pixelAt(frame, 224, 520), colors::kDebugBox));  // top
+        CHECK(isColor(pixelAt(frame, 224, 535), colors::kDebugBox));  // bottom
+        CHECK(isColor(pixelAt(frame, 212, 528), colors::kDebugBox));  // left
+        CHECK(isColor(pixelAt(frame, 235, 528), colors::kDebugBox));  // right
+        // The outline is 1 px: just outside the box is not the debug color.
+        CHECK_FALSE(isColor(pixelAt(frame, 211, 528), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 236, 528), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 224, 519), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 224, 536), colors::kDebugBox));
+        SDL_FreeSurface(frame);
+    }
+
+    // Fire once: a bullet spawns at (222, 510) and moves 8 px up during the
+    // same step, so by render time its box is (222, 502, 4, 10).
+    drainSdlEvents();  // drop spurious window events from the present above
+    input.injectKeyDown(SDLK_SPACE);
+    stepFrame();
+    CHECK(projectiles.count() == 1);
+    CHECK(projectiles.projectile(0).bounds() == Rect{222.0f, 502.0f, 4.0f, 10.0f});
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // Bullet box outline: corners...
+        CHECK(isColor(pixelAt(frame, 222, 502), colors::kDebugBox));  // TL
+        CHECK(isColor(pixelAt(frame, 225, 511), colors::kDebugBox));  // BR
+        // ...but the interior is still the bullet sprite (outline only).
+        CHECK(isColor(pixelAt(frame, 224, 507), colors::kBullet));
+        // The player box is still outlined at the same time.
+        CHECK(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
+        SDL_FreeSurface(frame);
+    }
+
+    // Press F1 again: the overlay turns off (the bullet has moved 8 px up to
+    // (222, 494) during this step).
+    drainSdlEvents();  // drop spurious window events from the present above
+    input.injectKeyUp(SDLK_F1);
+    input.injectKeyDown(SDLK_F1);
+    stepFrame();
+    CHECK_FALSE(collisionDebug);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // No debug color anywhere on the boxes anymore...
+        CHECK_FALSE(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 222, 494), colors::kDebugBox));
+        // ...and the sprites are back: player base and bullet body.
+        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        CHECK(isColor(pixelAt(frame, 224, 499), colors::kBullet));
         SDL_FreeSurface(frame);
     }
 

@@ -1,7 +1,9 @@
 #include "Game.hpp"
 
 #include <cstdio>
+#include <vector>
 
+#include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 
 namespace galaxian {
@@ -104,6 +106,11 @@ void Game::processEvents()
     if (input_.wasPressed(Action::DebugOverlay)) {
         statsEnabled_ = !statsEnabled_;
     }
+    if (input_.wasPressed(Action::DebugCollision)) {
+        // Stage 7: F1 toggles the collision-box debug overlay (the drawing
+        // itself is isolated in graphics/DebugOverlay, architecture §3.5).
+        collisionDebug_ = !collisionDebug_;
+    }
     if (input_.wasPressed(Action::Pause)) {
         // Escape. The Stage 17 state machine turns this into pause/resume;
         // until then the single dev scene acts as the title, so Escape quits
@@ -194,6 +201,21 @@ void Game::render()
                       (player_.alive() ? 1 : 0) + projectiles_.count(),
                       projectiles_.count());
         renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
+    }
+
+    // Stage 7: F1 collision-box debug overlay. Game collects the live boxes
+    // (player + projectiles) and hands them to the isolated graphics module;
+    // the AABB rule itself is gameplay/Collision.hpp, not here.
+    if (collisionDebug_) {
+        std::vector<Rect> boxes;
+        boxes.reserve(1 + projectiles_.count());
+        if (player_.alive()) {
+            boxes.push_back(player_.bounds());
+        }
+        for (int i = 0; i < projectiles_.count(); ++i) {
+            boxes.push_back(projectiles_.projectile(i).bounds());
+        }
+        DebugOverlay::drawCollisionBoxes(renderer_, boxes, colors::kDebugBox);
     }
 
     renderer_.present();

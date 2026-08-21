@@ -192,6 +192,22 @@ Stage 6 implements the player side (`gameplay/Projectile.{hpp,cpp}`):
 - AABB only. Edge-touching counts as **no** collision (strict inequality).
 - Every gameplay object exposes `bounds()`; debug overlay (F1) draws them.
 
+Stage 7 implements the rule and the debug overlay:
+
+- **`gameplay/Collision.hpp`** (header-only, SDL-free): `constexpr bool
+  intersects(const Rect& a, const Rect& b)` — positive-area intersection
+  (`min(right) - max(left) > 0` on both axes). Symmetric, origin-independent
+  (negative coordinates fine); a degenerate (zero-width/zero-height) box
+  never collides. This is the only place collision rules live.
+- **`graphics/DebugOverlay.{hpp,cpp}`**: the isolated rendering hook.
+  `DebugOverlay::drawCollisionBoxes(renderer, boxes, color)` draws 1-px
+  outlines around the boxes it is given — no game logic, no collision rules.
+  `Game` owns the F1 (`Action::DebugCollision`) toggle and collects the live
+  boxes (player + projectiles) to hand over.
+- **Enforcement:** the `no_collision_in_graphics` CTest greps `src/graphics`
+  for the collision function name, so the dependency rule is checked on
+  every test run (alongside `no_sdlk_in_gameplay`).
+
 ### 3.6 Enemies and formation (Stages 8–13)
 
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,

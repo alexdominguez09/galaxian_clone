@@ -34,6 +34,7 @@ add_library(galaxian_core STATIC
     src/core/TimestepController.cpp
     src/graphics/Texture.cpp
     src/graphics/Renderer.cpp
+    src/graphics/DebugOverlay.cpp
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp
     src/input/InputManager.cpp

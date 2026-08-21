@@ -78,15 +78,15 @@ Manual:
       cap are perceivable, bullets vanish off the top edge
 
 ### Stage 7 — Collision
-- [ ] Overlap detected; no overlap not detected
-- [ ] Edge-touching = no collision (strict)
-- [ ] Full containment detected
-- [ ] Partial intersection detected
-- [ ] Negative coordinates handled
-- [ ] Degenerate (zero-size) rects handled
+- [x] Overlap detected; no overlap not detected
+- [x] Edge-touching = no collision (strict)
+- [x] Full containment detected
+- [x] Partial intersection detected
+- [x] Negative coordinates handled
+- [x] Degenerate (zero-size) rects handled
 Manual:
-- [ ] F1 draws boxes aligned with sprites
-- [ ] No collision code in graphics/
+- [x] F1 draws boxes aligned with sprites
+- [x] No collision code in graphics/
 
 ### Stage 8 — Enemy formation
 - [ ] Exactly 40 enemies spawned

@@ -71,6 +71,8 @@ inline constexpr Color kEnemyYellow{255, 220, 60};
 inline constexpr Color kBullet{255, 255, 200};
 inline constexpr Color kBorder{96, 96, 140};
 inline constexpr Color kGreen{120, 255, 120};
+// Stage 7: F1 debug collision-box outline (magenta, unused elsewhere).
+inline constexpr Color kDebugBox{255, 0, 255};
 }  // namespace colors
 
 }  // namespace galaxian
