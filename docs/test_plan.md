@@ -89,11 +89,11 @@ Manual:
 - [x] No collision code in graphics/
 
 ### Stage 8 — Enemy formation
-- [ ] Exactly 40 enemies spawned
-- [ ] Row/type layout matches spec (8/8/8/8/8, types per row)
-- [ ] Spacing: 48 px columns, 36 px rows
-- [ ] Initial coordinates match spec exactly
-- [ ] Deterministic: identical layout across 100 spawns
+- [x] Exactly 40 enemies spawned
+- [x] Row/type layout matches spec (8/8/8/8/8, types per row)
+- [x] Spacing: 48 px columns, 36 px rows
+- [x] Initial coordinates match spec exactly
+- [x] Deterministic: identical layout across 100 spawns
 
 ### Stage 9 — Player vs enemy combat
 - [ ] Bullet-enemy overlap → enemy dead, bullet consumed

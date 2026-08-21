@@ -5,6 +5,7 @@
 #include "Constants.hpp"
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
+#include "gameplay/EnemyFormation.hpp"
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "graphics/DevScene.hpp"
@@ -32,7 +33,11 @@ namespace galaxian {
 // fixed-timestep simulation. Stage 7 adds the collision system: the AABB
 // rule lives in gameplay/Collision.hpp (SDL-free); this class only owns the
 // F1 (Action::DebugCollision) toggle that makes graphics/DebugOverlay draw
-// 1-px outlines around the live player/projectile boxes.
+// 1-px outlines around the live player/projectile boxes. Stage 8 adds the
+// static enemy formation: the 40-enemy grid (gameplay/EnemyFormation,
+// SDL-free) is drawn each frame from the dev-art enemy textures (the
+// spriteIndex -> texture mapping lives here, the composition root) and its
+// boxes join the F1 collision overlay.
 class Game {
 public:
     Game() = default;
@@ -104,6 +109,15 @@ private:
     // it.
     ProjectileManager projectiles_;
     const Texture* bulletTexture_ = nullptr;
+    // Stage 8: the static enemy formation (gameplay/EnemyFormation,
+    // SDL-free). No update yet (Stage 8 has no movement; Stage 10 adds the
+    // oscillation); drawn in render() and part of the F1 collision boxes.
+    EnemyFormation formation_;
+    // Dev-art enemy textures indexed by EnemyDefinition::spriteIndex
+    // (0 Scout, 1 Guard, 2 Commander). The spriteIndex -> texture mapping
+    // is a graphics concern kept in the composition root, so gameplay/
+    // stays SDL-free.
+    const Texture* enemyTextures_[kEnemyTypeCount] = {};
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

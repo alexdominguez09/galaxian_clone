@@ -210,6 +210,24 @@ Stage 7 implements the rule and the debug overlay:
 
 ### 3.6 Enemies and formation (Stages 8–13)
 
+Stage 8 implements the static formation (`gameplay/Enemy.{hpp,cpp}`,
+`gameplay/EnemyFormation.{hpp,cpp}`):
+
+- **SDL-free** (dependency rule, §1): the formation is pure data updated in
+  the fixed-timestep simulation; the spriteIndex → texture mapping lives in
+  `Game` (the composition root), which hands graphics/ the textures to draw.
+- **Data-driven types** (spec §6.1): `EnemyType` + the
+  `kEnemyDefinitions` table (points, speed, sprite index); no subclasses.
+  Speeds are nominal placeholders until Stage 23 tuning (spec-frozen values
+  are points and sprite index only).
+- **Grid** (spec §6.2): 5 rows x 8 columns = 40 enemies in a fixed 40-slot
+  row-major array (no heap); slot offsets on a 48 px column / 36 px row
+  lattice, top-left anchor (32, 64). Screen position = formation world
+  position + slot offset; the world position is static in Stage 8 and is
+  what Stage 10 oscillates.
+- **Minimal state**: `EnemyState` is the `Formation`/`Dead` pair in Stage 8
+  (mirroring the Stage 5 Player); Stage 11 expands it to the full machine.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position

@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "core/Types.hpp"
+#include "gameplay/EnemyFormation.hpp"
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "graphics/DebugOverlay.hpp"
@@ -178,6 +179,45 @@ bool fontAvailable()
         }
     }
     return false;
+}
+
+// Enemy textures indexed by EnemyDefinition::spriteIndex (0 Scout, 1 Guard,
+// 2 Commander) — the same mapping Game uses (the composition root keeps it
+// out of gameplay/).
+using EnemyTextureTable = std::array<const Texture*, kEnemyTypeCount>;
+
+// Resolves the three enemy textures from the renderer's cache.
+EnemyTextureTable resolveEnemyTextures(Renderer& renderer)
+{
+    const char* const ids[kEnemyTypeCount] = {DevArt::kEnemyScout,
+                                              DevArt::kEnemyGuard,
+                                              DevArt::kEnemyCommander};
+    EnemyTextureTable textures{};
+    for (int sprite = 0; sprite < kEnemyTypeCount; ++sprite) {
+        textures[sprite] = renderer.texture(ids[sprite]);
+    }
+    return textures;
+}
+
+// Draws the formation exactly like Game::render() does (Stage 8): the 24x24
+// sprite coincides with the collision box, drawn at the box's top-left
+// (formation world position + slot offset).
+void drawFormation(Renderer& renderer, const EnemyFormation& formation,
+                   const EnemyTextureTable& textures)
+{
+    for (int row = 0; row < EnemyFormation::kRows; ++row) {
+        for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+            const Enemy& enemy = formation.at(row, col);
+            if (!enemy.alive()) {
+                continue;
+            }
+            const Texture* texture =
+                textures[enemy.definition().spriteIndex];
+            if (texture != nullptr) {
+                renderer.drawSprite(*texture, formation.positionOf(row, col));
+            }
+        }
+    }
 }
 
 }  // namespace
@@ -477,14 +517,68 @@ TEST_CASE("dev scene: renders all elements", "[rendering]")
     CHECK(isColor(pixelAt(frame, 0, 575), colors::kBorder));
     // Interior background (a point away from all sprites/text/bullets).
     CHECK(isColor(pixelAt(frame, 224, 350), colors::kBlack));
-    // First enemy (commander, red) at (80, 60): center of the 24x24 square.
-    CHECK(isColor(pixelAt(frame, 80 + 12, 60 + 12), colors::kEnemyRed));
     // Bullet rectangle at (100, 400), 4x10.
     CHECK(isColor(pixelAt(frame, 101, 405), colors::kBullet));
     // Stage 5: the player is no longer part of the dev scene (it is the real
     // gameplay Player, owned and drawn by Game). The spot where the Stage 4
     // demo player used to be is now plain background.
     CHECK(isColor(pixelAt(frame, 212 + 12, 520 + 15), colors::kBlack));
+    // Stage 8: the 10 dummy enemies are gone (the real gameplay formation
+    // is owned and drawn by Game — see the formation pixel test below). The
+    // center of the first old dummy enemy is plain background again...
+    CHECK(isColor(pixelAt(frame, 80 + 12, 60 + 12), colors::kBlack));
+    // ...and so is the Stage 4 action table area (removed in Stage 8, it
+    // overlapped the formation area).
+    CHECK(isColor(pixelAt(frame, 20, 250), colors::kBlack));
+    SDL_FreeSurface(frame);
+    renderer.shutdown();
+}
+
+// Stage 8 (docs/test_plan.md, Stage 8): the real gameplay formation renders
+// as the 5x8 spec grid — Commander row red, Guard rows yellow, Scout rows
+// green — at the exact spec coordinates, with the spec 48/36 px spacing
+// (verified by the gaps between boxes). Pixel-verified headlessly.
+TEST_CASE("enemy formation: renders the 40-enemy grid at spec coordinates",
+          "[enemy][formation][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    REQUIRE(DevArt::createAll(renderer));
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
+    for (const Texture* texture : enemyTextures) {
+        REQUIRE(texture != nullptr);
+    }
+
+    EnemyFormation formation;  // default: 40 enemies at the spec anchor
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+
+    scene.draw(renderer);
+    drawFormation(renderer, formation, enemyTextures);
+    renderer.present();
+
+    SDL_Surface* frame = readback(renderer.sdlRenderer());
+    REQUIRE(frame != nullptr);
+    // Column-0 centers, one per row (box centers: x = 44, y = 76 + 36r).
+    CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));     // row 0
+    CHECK(isColor(pixelAt(frame, 44, 112), colors::kEnemyYellow)); // row 1
+    CHECK(isColor(pixelAt(frame, 44, 148), colors::kEnemyYellow)); // row 2
+    CHECK(isColor(pixelAt(frame, 44, 184), colors::kEnemyGreen));  // row 3
+    CHECK(isColor(pixelAt(frame, 44, 220), colors::kEnemyGreen));  // row 4
+    // Corners of the grid (center x of col 7 is 380).
+    CHECK(isColor(pixelAt(frame, 380, 76), colors::kEnemyRed));    // row 0
+    CHECK(isColor(pixelAt(frame, 380, 220), colors::kEnemyGreen)); // row 4
+    // Middle of the grid (col 4 center x = 236).
+    CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyGreen)); // row 4
+    // Spec spacing: the gaps between adjacent boxes are background.
+    // Column gap: col 0 ends at x=56, col 1 starts at x=80 -> x=68 empty.
+    CHECK(isColor(pixelAt(frame, 68, 76), colors::kBlack));
+    // Row gap: row 0 ends at y=88, row 1 starts at y=100 -> y=94 empty.
+    CHECK(isColor(pixelAt(frame, 44, 94), colors::kBlack));
+    // The grid extent: just outside the top-left box (32, 64) is background.
+    CHECK(isColor(pixelAt(frame, 31, 64), colors::kBlack));
+    CHECK(isColor(pixelAt(frame, 32, 63), colors::kBlack));
     SDL_FreeSurface(frame);
     renderer.shutdown();
 }
@@ -525,8 +619,10 @@ TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
     REQUIRE(scene.initialize(renderer));
     const Texture* playerTex = renderer.texture(DevArt::kPlayer);
     REQUIRE(playerTex != nullptr);
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
 
     Player player;
+    EnemyFormation formation;  // Stage 8: the static formation (drawn only)
     InputManager input;
     const double dt = 1.0 / 60.0;
 
@@ -549,9 +645,11 @@ TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
         }
         input.endFrame();
     };
-    // Mirrors Game::render(): the test scene, then the real Player on top.
+    // Mirrors Game::render(): the test scene, the formation, then the real
+    // Player on top.
     auto drawFrame = [&]() {
         scene.draw(renderer);
+        drawFormation(renderer, formation, enemyTextures);
         if (player.alive()) {
             renderer.drawSprite(*playerTex, player.bounds().position());
         }
@@ -617,8 +715,10 @@ TEST_CASE("projectiles: fire spawns bullets that fly up and expire (pixels)",
     const Texture* bulletTex = renderer.texture(DevArt::kBullet);
     REQUIRE(playerTex != nullptr);
     REQUIRE(bulletTex != nullptr);
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
 
     Player player;
+    EnemyFormation formation;  // Stage 8: the static formation (drawn only)
     ProjectileManager projectiles;
     InputManager input;
     const double dt = 1.0 / 60.0;
@@ -636,9 +736,11 @@ TEST_CASE("projectiles: fire spawns bullets that fly up and expire (pixels)",
         projectiles.update(dt);
         input.endFrame();
     };
-    // Mirrors Game::render(): the dev scene, then the gameplay objects.
+    // Mirrors Game::render(): the dev scene, the formation, then the
+    // gameplay objects.
     auto drawFrame = [&]() {
         scene.draw(renderer);
+        drawFormation(renderer, formation, enemyTextures);
         if (player.alive()) {
             renderer.drawSprite(*playerTex, player.bounds().position());
         }
@@ -716,8 +818,10 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
     const Texture* bulletTex = renderer.texture(DevArt::kBullet);
     REQUIRE(playerTex != nullptr);
     REQUIRE(bulletTex != nullptr);
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
 
     Player player;
+    EnemyFormation formation;  // Stage 8: boxes join the F1 overlay
     ProjectileManager projectiles;
     InputManager input;
     bool collisionDebug = false;  // mirrors Game::collisionDebug_
@@ -740,10 +844,12 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         projectiles.update(dt);
         input.endFrame();
     };
-    // Mirrors Game::render(): the dev scene, the gameplay objects, then the
-    // F1 debug overlay (boxes collected by Game, drawn by DebugOverlay).
+    // Mirrors Game::render(): the dev scene, the formation, the gameplay
+    // objects, then the F1 debug overlay (boxes collected by Game —
+    // formation + player + projectiles — drawn by DebugOverlay).
     auto drawFrame = [&]() {
         scene.draw(renderer);
+        drawFormation(renderer, formation, enemyTextures);
         if (player.alive()) {
             renderer.drawSprite(*playerTex, player.bounds().position());
         }
@@ -753,6 +859,13 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         }
         if (collisionDebug) {
             std::vector<Rect> boxes;
+            for (int row = 0; row < EnemyFormation::kRows; ++row) {
+                for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+                    if (formation.at(row, col).alive()) {
+                        boxes.push_back(formation.boundsOf(row, col));
+                    }
+                }
+            }
             if (player.alive()) {
                 boxes.push_back(player.bounds());
             }
@@ -778,6 +891,11 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
         CHECK_FALSE(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 235, 535), colors::kDebugBox));
+        // Stage 8: the formation renders (row 0 col 0 center is the
+        // Commander red) and its boxes are not outlined yet.
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        CHECK_FALSE(isColor(pixelAt(frame, 32, 64), colors::kDebugBox));
+        CHECK_FALSE(isColor(pixelAt(frame, 55, 87), colors::kDebugBox));
         SDL_FreeSurface(frame);
     }
 
@@ -805,6 +923,14 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         CHECK_FALSE(isColor(pixelAt(frame, 236, 528), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 224, 519), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 224, 536), colors::kDebugBox));
+        // Stage 8: the formation's boxes are outlined too (the whole 5x8
+        // spec grid), aligned with the enemy sprites.
+        CHECK(isColor(pixelAt(frame, 32, 64), colors::kDebugBox));   // r0c0 TL
+        CHECK(isColor(pixelAt(frame, 55, 87), colors::kDebugBox));   // r0c0 BR
+        CHECK(isColor(pixelAt(frame, 368, 208), colors::kDebugBox)); // r4c7 TL
+        CHECK(isColor(pixelAt(frame, 391, 231), colors::kDebugBox)); // r4c7 BR
+        // The box interior is still the sprite (outline only).
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
         SDL_FreeSurface(frame);
     }
 
@@ -843,9 +969,12 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         // No debug color anywhere on the boxes anymore...
         CHECK_FALSE(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 222, 494), colors::kDebugBox));
-        // ...and the sprites are back: player base and bullet body.
+        CHECK_FALSE(isColor(pixelAt(frame, 32, 64), colors::kDebugBox));
+        // ...and the sprites are back: player base, bullet body, and the
+        // formation squares.
         CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
         CHECK(isColor(pixelAt(frame, 224, 499), colors::kBullet));
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
         SDL_FreeSurface(frame);
     }
 

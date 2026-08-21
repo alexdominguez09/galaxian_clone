@@ -38,6 +38,8 @@ add_library(galaxian_core STATIC
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp
     src/input/InputManager.cpp
+    src/gameplay/Enemy.cpp
+    src/gameplay/EnemyFormation.cpp
     src/gameplay/Player.cpp
     src/gameplay/Projectile.cpp
 )

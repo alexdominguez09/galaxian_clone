@@ -8,6 +8,19 @@
 
 namespace galaxian {
 
+namespace {
+
+// Stage 8: EnemyDefinition::spriteIndex -> dev-art texture id
+// (docs/game_spec.md §6.1: Scout sprite 0, Guard 1, Commander 2). Kept in
+// the composition root so gameplay/ stays SDL-free.
+const char* const kEnemyTextureIds[kEnemyTypeCount] = {
+    DevArt::kEnemyScout,
+    DevArt::kEnemyGuard,
+    DevArt::kEnemyCommander,
+};
+
+}  // namespace
+
 Game::~Game() { shutdown(); }
 
 bool Game::initialize()
@@ -26,12 +39,23 @@ bool Game::initialize()
         shutdown();
         return false;
     }
-    // Stage 5/6: the dev scene's DevArt::createAll() registered the dev
-    // textures; grab the player sprite (24x16) and the bullet sprite (4x10,
-    // coinciding with the projectile box) for drawing the gameplay objects.
+    // Stage 5/6/8: the dev scene's DevArt::createAll() registered the dev
+    // textures; grab the player sprite (24x16), the bullet sprite (4x10,
+    // coinciding with the projectile box), and the three enemy sprites
+    // (24x24, coinciding with the enemy box) for drawing the gameplay
+    // objects.
     playerTexture_ = renderer_.texture(DevArt::kPlayer);
     bulletTexture_ = renderer_.texture(DevArt::kBullet);
-    if (playerTexture_ == nullptr || bulletTexture_ == nullptr) {
+    for (int sprite = 0; sprite < kEnemyTypeCount; ++sprite) {
+        enemyTextures_[sprite] = renderer_.texture(kEnemyTextureIds[sprite]);
+    }
+    bool allTextures = playerTexture_ != nullptr && bulletTexture_ != nullptr;
+    if (allTextures) {
+        for (int sprite = 0; sprite < kEnemyTypeCount; ++sprite) {
+            allTextures = allTextures && enemyTextures_[sprite] != nullptr;
+        }
+    }
+    if (!allTextures) {
         std::fprintf(stderr, "galaxian: dev texture unavailable\n");
         shutdown();
         return false;
@@ -67,11 +91,12 @@ void Game::run()
         }
         updatesSinceReport_ += steps;
 
-        // Dev scene (enemies, text, border, action table). The Stage 4 input
-        // demo that moved a stand-in player is gone: the real Player is
-        // simulated in fixedUpdate() and drawn in render().
-        devScene_.update(input_);
-
+        // Dev scene (text, static bullet rectangles, border). The Stage 4
+        // input demo that moved a stand-in player is gone: the real Player
+        // is simulated in fixedUpdate() and drawn in render(). The dummy
+        // enemies and the action table were removed in Stage 8: the real
+        // formation is drawn by render(), and the table overlapped the
+        // formation area.
         render();
 
         // Clear per-frame input edges (once per frame;
@@ -169,9 +194,27 @@ void Game::fixedUpdate(double dt)
 
 void Game::render()
 {
-    // Stage 3/4 test scene: enemy sprites, text, projectile rectangles,
-    // screen border, and the Stage 4 action table (dev aid).
+    // Stage 3 test scene: text, static projectile rectangles, screen border.
+    // (The dummy enemies and the Stage 4 action table were removed in
+    // Stage 8; see DevScene.)
     devScene_.draw(renderer_);
+
+    // Stage 8: the static enemy formation (40 enemies, spec §6.2). The 24x24
+    // enemy sprite coincides with the collision box, so the box's top-left
+    // (formation world position + slot offset) is the draw position.
+    for (int row = 0; row < EnemyFormation::kRows; ++row) {
+        for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+            const Enemy& enemy = formation_.at(row, col);
+            if (!enemy.alive()) {
+                continue;  // holes stay empty (spec §6.3)
+            }
+            const int sprite = enemy.definition().spriteIndex;
+            if (enemyTextures_[sprite] != nullptr) {
+                renderer_.drawSprite(*enemyTextures_[sprite],
+                                     formation_.positionOf(row, col));
+            }
+        }
+    }
 
     // Stage 5: the real Player (drawn on top of the test scene). The sprite
     // is 24x16 and coincides with the collision box, so the box's top-left
@@ -197,18 +240,27 @@ void Game::render()
         std::snprintf(line, sizeof(line), "SIM: %.3f s  STEP: %.1f ms",
                       simTime_, timestep_.dt() * 1000.0);
         renderer_.drawText(line, {16.0f, 496.0f}, colors::kGreen);
-        std::snprintf(line, sizeof(line), "ENT: %d (proj %d)",
-                      (player_.alive() ? 1 : 0) + projectiles_.count(),
-                      projectiles_.count());
+        const int entities = formation_.aliveCount() +
+                             (player_.alive() ? 1 : 0) + projectiles_.count();
+        std::snprintf(line, sizeof(line), "ENT: %d (enemy %d, proj %d)",
+                      entities, formation_.aliveCount(), projectiles_.count());
         renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
     }
 
-    // Stage 7: F1 collision-box debug overlay. Game collects the live boxes
-    // (player + projectiles) and hands them to the isolated graphics module;
-    // the AABB rule itself is gameplay/Collision.hpp, not here.
+    // Stage 7 (extended in Stage 8): F1 collision-box debug overlay. Game
+    // collects the live boxes (formation + player + projectiles) and hands
+    // them to the isolated graphics module; the AABB rule itself is
+    // gameplay/Collision.hpp, not here.
     if (collisionDebug_) {
         std::vector<Rect> boxes;
-        boxes.reserve(1 + projectiles_.count());
+        boxes.reserve(formation_.aliveCount() + 1 + projectiles_.count());
+        for (int row = 0; row < EnemyFormation::kRows; ++row) {
+            for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+                if (formation_.at(row, col).alive()) {
+                    boxes.push_back(formation_.boundsOf(row, col));
+                }
+            }
+        }
         if (player_.alive()) {
             boxes.push_back(player_.bounds());
         }
@@ -236,12 +288,13 @@ void Game::reportStats()
     updatesPerSecond_ = static_cast<double>(updatesSinceReport_) / window;
 
     if (statsEnabled_ || inSmokeMode()) {
+        const int entities = formation_.aliveCount() +
+                             (player_.alive() ? 1 : 0) + projectiles_.count();
         std::fprintf(stderr,
-                     "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                     "sim_time=%.1fs entities=%d\n",
-                     fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
-                     simTime_,
-                     (player_.alive() ? 1 : 0) + projectiles_.count());
+                      "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
+                      "sim_time=%.1fs entities=%d\n",
+                      fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
+                      simTime_, entities);
     }
 
     lastReportSeconds_ = now;
