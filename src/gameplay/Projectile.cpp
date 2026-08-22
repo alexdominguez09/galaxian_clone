@@ -1,5 +1,7 @@
 #include "Projectile.hpp"
 
+#include <cmath>
+
 namespace galaxian {
 
 namespace {
@@ -32,6 +34,25 @@ bool ProjectileManager::tryFirePlayer(const Player& player)
     cooldownRemaining_[static_cast<int>(ProjectileOwner::Player)] =
         kFireCooldownSeconds;
     return true;
+}
+
+bool ProjectileManager::tryFireEnemy(Vector2 muzzle, Vector2 aimAt,
+                                     double speed)
+{
+    // Aim from muzzle to the target AT FIRE TIME; degenerate aim falls
+    // back straight down.
+    const float dx = aimAt.x - muzzle.x;
+    const float dy = aimAt.y - muzzle.y;
+    Vector2 velocity{0.0f, static_cast<float>(speed)};
+    if (dx != 0.0f || dy != 0.0f) {
+        const float len = std::sqrt(dx * dx + dy * dy);
+        velocity =
+            Vector2{dx / len, dy / len} * static_cast<float>(speed);
+    }
+    // The box centers on the muzzle point (top-left = center - size/2).
+    const Vector2 position{muzzle.x - Projectile::kWidth * 0.5f,
+                           muzzle.y - Projectile::kHeight * 0.5f};
+    return spawn(ProjectileOwner::Enemy, position, velocity);
 }
 
 bool ProjectileManager::spawn(ProjectileOwner owner, Vector2 position,

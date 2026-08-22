@@ -159,7 +159,8 @@ void Game::processEvents()
                      static_cast<float>(kLogicalWidth) * 0.5f)
                         ? DivePattern::LeftDive
                         : DivePattern::RightDive;
-                if (enemy.beginDive(pattern)) {
+                if (enemy.beginDive(pattern,
+                                    attacks_.params().shotsPerAttack)) {
                     std::printf("Enemy (%d,%d) beginning dive (%s)\n", row,
                                 col, divePatternName(pattern).data());
                     launched = true;
@@ -223,6 +224,38 @@ void Game::fixedUpdate(double dt)
     // phase accumulation on the fixed step. This also advances every
     // enemy's own state machine.
     formation_.update(dt);
+
+    // Stage 14: divers' fire events -> aimed enemy bullets (spec §6.4/§8).
+    // The enemy raises deterministic parametric triggers; this composition
+    // root turns each event into a bullet spawned from the diver's
+    // bottom-center, aimed at the player's position AT FIRE TIME (straight
+    // down when the player is dead). Enemy bullets reuse the shared
+    // Projectile system (downward motion + bottom cull since Stage 6);
+    // they can never damage enemies, and player damage itself is
+    // Stage 15.
+    {
+        const Vector2 fp = formation_.position();
+        for (int row = 0; row < EnemyFormation::kRows; ++row) {
+            for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+                Enemy& enemy = formation_.at(row, col);
+                int pending = enemy.drainPendingShots();
+                if (pending == 0 || !enemy.alive()) {
+                    continue;
+                }
+                const Rect box = enemy.bounds(fp);
+                const Vector2 muzzle{box.x + box.width * 0.5f, box.bottom()};
+                while (pending-- > 0) {
+                    projectiles_.tryFireEnemy(
+                        muzzle,
+                        player_.alive()
+                            ? player_.position()
+                            : Vector2{muzzle.x,
+                                      static_cast<float>(kLogicalHeight)},
+                        ProjectileManager::kEnemySpeed);
+                }
+            }
+        }
+    }
 
     // Stage 13: the AttackDirector — the central pacing authority (spec
     // §7). It sees this step's post-move states and launches at most one

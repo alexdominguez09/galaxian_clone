@@ -136,11 +136,11 @@ Manual:
 - [x] All 40 enemies dead → director idles safely
 
 ### Stage 14 — Enemy projectiles
-- [ ] Enemy fires during attack (1–2 shots per wave rules)
-- [ ] Enemy bullets move downward, culled off-screen
-- [ ] Enemy bullet never damages an enemy (ownership)
-- [ ] Player bullet never damages player (ownership)
-- [ ] Aimed shots point at player position at fire time
+- [x] Enemy fires during attack (1–2 shots per wave rules)
+- [x] Enemy bullets move downward, culled off-screen
+- [x] Enemy bullet never damages an enemy (ownership)
+- [x] Player bullet never damages player (ownership)
+- [x] Aimed shots point at player position at fire time
 
 ### Stage 15 — Player death/lives
 - [ ] Enemy bullet collision → exactly one life removed

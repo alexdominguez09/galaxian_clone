@@ -114,7 +114,7 @@ int AttackDirector::update(double dt, EnemyFormation& formation)
     } else if (slotX > 192.0f) {
         pattern = DivePattern::RightDive;
     }
-    attacker->beginDive(pattern);
+    attacker->beginDive(pattern, params_.shotsPerAttack);
 
     sinceLast_ = 0.0;
     return 1;

@@ -336,6 +336,29 @@ spec §7):
   Stage 16's wave system; F2/console stats gained an active-attack count;
   the F3 debug aid remains a manual bypass for development.
 
+Stage 14 adds enemy fire on top of the shared projectile system
+(spec §6.4/§8):
+
+- **Budget flow**: the director passes its wave's `shotsPerAttack` (1–2)
+  into `Enemy::beginDive(pattern, shots)`. The enemy raises deterministic
+  fire EVENTS when its dive path crosses parametric trigger points — the
+  midpoint for one-shot dives, t = 0.35/0.75 for two-shot dives — and the
+  composition root drains them (`drainPendingShots()`) right after
+  `formation_.update(dt)`. Enemies stay decoupled from Player and
+  ProjectileManager.
+- **`ProjectileManager::tryFireEnemy(muzzle, aimAt, speed)`**: spawns an
+  Enemy-owned bullet centred on the muzzle (the diver's box bottom-centre)
+  aimed at the player's position AT FIRE TIME; degenerate aims fall back
+  straight down. Base speed 240 px/s (`kEnemySpeed`); wave scaling
+  (bounded ≤ 360) lands with Stage 16. No cooldown — the per-dive budget
+  is the cadence.
+- **Ownership unchanged** (spec §8): enemy bullets move down and are
+  culled below the screen (Stage 6 machinery); they can never damage
+  enemies (`resolvePlayerBullets` skips Enemy-owned rounds). Player damage
+  from enemy bullets is Stage 15's resolution step.
+- The F3 debug aid grants the current wave's shot budget so manual dives
+  behave like directed ones.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position

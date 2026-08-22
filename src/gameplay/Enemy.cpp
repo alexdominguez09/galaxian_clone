@@ -75,13 +75,25 @@ void Enemy::kill()
     transitionTo(EnemyState::Dead);
 }
 
-bool Enemy::beginDive(DivePattern pattern)
+bool Enemy::beginDive(DivePattern pattern, int shotsPerDive)
 {
     if (!transitionTo(EnemyState::PreparingDive)) {
         return false;
     }
     divePattern_ = pattern;
+    // Spec §6.4: 1-2 shots during the attack phase; clamp defensively.
+    shotsTotal_ = (shotsPerDive < 0) ? 0
+                  : (shotsPerDive > 2 ? 2 : shotsPerDive);
+    shotsFired_ = 0;
+    pendingShots_ = 0;
     return true;
+}
+
+int Enemy::drainPendingShots()
+{
+    const int pending = pendingShots_;
+    pendingShots_ = 0;
+    return pending;
 }
 
 void Enemy::update(double dt, Vector2 formationPosition)
@@ -117,6 +129,22 @@ void Enemy::update(double dt, Vector2 formationPosition)
             follower_.advance(path_, definition().speed *
                                          static_cast<float>(dt));
             divePosition_ = path_.curve().evaluate(follower_.t());
+
+            // Stage 14: fire events at deterministic parametric trigger
+            // points (midpoint for one-shot dives, quartiles 0.35/0.75 for
+            // two-shot dives).
+            while (shotsFired_ < shotsTotal_) {
+                const float trigger =
+                    (shotsTotal_ == 1)
+                        ? kSingleShotTrigger
+                        : kDoubleShotTriggers[shotsFired_];
+                if (follower_.t() < trigger) {
+                    break;
+                }
+                ++shotsFired_;
+                ++pendingShots_;
+            }
+
             if (follower_.finished()) {
                 state_ = EnemyState::Attacking;
                 // Dash towards the nearer vertical edge.

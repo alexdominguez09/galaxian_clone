@@ -108,6 +108,13 @@ public:
     // screen, and arcs back to its slot.
     static constexpr double kPrepareDurationSeconds = 0.5;
 
+    // Stage 14 shot triggers (docs/game_spec.md §6.4: 1-2 projectiles
+    // during the attack phase). A one-shot dive fires at the path's
+    // midpoint; a two-shot dive fires at the first and third quartile —
+    // deterministic, reproducible points along the arc.
+    static constexpr float kSingleShotTrigger = 0.50f;
+    static constexpr float kDoubleShotTriggers[2] = {0.35f, 0.75f};
+
     Enemy() = default;
 
     // Creates a living enemy of `type` at formation-local `slotOffset`
@@ -147,10 +154,19 @@ public:
     void kill();
 
     // Convenience for selection (the future AttackDirector, debug aids):
-    // Formation -> PreparingDive with the given attack pattern (the
-    // pattern is followed once Diving starts). Returns false if not in
-    // Formation.
-    bool beginDive(DivePattern pattern);
+    // Formation -> PreparingDive with the given attack pattern and a
+    // per-dive SHOT BUDGET (docs/game_spec.md §6.4/§7: 1-2 projectiles
+    // during the attack phase; the director passes its wave's budget).
+    // The shots fire as parametric trigger points along the dive path are
+    // crossed (see kShotTrigger*); each one raises a pending fire event
+    // the caller drains via drainPendingShots() and turns into an aimed
+    // bullet. Returns false if not in Formation.
+    bool beginDive(DivePattern pattern, int shotsPerDive = 1);
+
+    // Stage 14: returns and CLEARS the number of pending fire events
+    // raised during this step's Diving update (0, or more if one huge dt
+    // crossed several triggers). The caller spawns the actual bullets.
+    int drainPendingShots();
 
     // Advances one fixed simulation step (docs/architecture.md §3.1).
     //
@@ -174,6 +190,10 @@ private:
     // -1 towards the left edge, +1 towards the right edge.
     float attackDirection_ = -1.0f;
     double prepareRemaining_ = 0.0;
+    // Stage 14: per-dive shot budget bookkeeping.
+    int shotsTotal_ = 0;      // budget granted at beginDive (0..2)
+    int shotsFired_ = 0;      // triggers consumed so far
+    int pendingShots_ = 0;    // undrained fire events
     // Stage 12: the active trajectory and its parameter follower. One
     // storage slot is reused: Diving holds an attack pattern, Returning
     // rebuilds it as a ReturnPath when the attack ends off-screen.

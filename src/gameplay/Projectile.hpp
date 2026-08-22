@@ -55,6 +55,9 @@ public:
     static constexpr float kPlayerSpeed = 480.0f;  // px/s, upward
     static constexpr double kFireCooldownSeconds = 0.35;
     static constexpr int kMaxPlayerProjectiles = 2;
+    // Enemy bullet speed (spec §8): 240 px/s base; wave-dependent scaling
+    // (bounded <= 360) lands with the Stage 16 wave system.
+    static constexpr double kEnemySpeed = 240.0;
     // Pool capacity: the player max (2) plus headroom for the enemy fire
     // that lands in Stage 14. A spawn into a full pool fails gracefully
     // (returns false) instead of growing.
@@ -66,6 +69,15 @@ public:
     // elapsed, the max simultaneous player projectiles is reached, or the
     // pool is full.
     bool tryFirePlayer(const Player& player);
+
+    // Enemy fire (docs/game_spec.md §8, Stage 14): spawns a bullet whose
+    // CENTER starts at `muzzle` and whose velocity points from `muzzle`
+    // towards `aimAt` (the player's position AT FIRE TIME) with magnitude
+    // `speed`. A degenerate aim (target == muzzle) falls back straight
+    // down. Returns false when the pool is full. No cooldown: the firing
+    // cadence is owned by the diver's per-dive shot budget.
+    bool tryFireEnemy(Vector2 muzzle, Vector2 aimAt,
+                      double speed = kEnemySpeed);
 
     // Generic spawn (used by tests now and by enemy fire in Stage 14).
     // `position` is the box's top-left corner. Returns false when the pool
