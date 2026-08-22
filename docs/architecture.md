@@ -454,10 +454,32 @@ Stage 9 implements the combat chain and the scoring core
 
 The deferred pieces land later:
 
-- `WaveManager`: detects formation cleared, runs interstitial, spawns next
-  formation with bounded difficulty parameters.
-- `ScoreManager`: single source of truth for score, high score, and the
-  score table (points per type, dive multiplier, wave bonus).
+- `WaveManager` (Stage 16): detects formation cleared, runs the
+  interstitial, spawns the next formation with bounded difficulty
+  parameters — **implemented in Stage 16**, see below.
+- High score display/persistence lands in Stages 18/22.
+
+Stage 16 adds the wave lifecycle (`gameplay/WaveManager.{hpp,cpp}`,
+spec §9):
+
+- **Clear detection**: a wave counts as complete only when every enemy is
+  DEAD (spec §9) — a lone diver still in flight blocks it. Detection runs
+  as the LAST step of `Game::fixedUpdate`, seeing post-combat state.
+- **Interstitial**: exactly 2.0 s ("WAVE CLEAR" center notice; expiry on
+  the 120th fixed step via the codebase-wide 1 ns tolerance), then the
+  manager itself rebuilds the formation (`reset()`: 40 living enemies at
+  the anchor) and hands the new parameters to the AttackDirector
+  (`beginWave(n+1)`). Score and player lives intentionally persist across
+  waves.
+- **Bounded difficulty** (spec §7/§8 caps): attackers ≤ 4, interval ≥ 3 s,
+  shots per dive ≤ 2 via `waveParams`; enemy bullet speed ramps +40 px/s
+  per completed wave from the 240 base, hard-capped at 360 px/s
+  (`ProjectileManager::speedForWave`, used by the fire-drain site);
+  formation speed stays self-adjusting via the Stage 10 death-pressure
+  multiplier bounded at 2.5x. Nothing multiplies unboundedly.
+- **HUD bits** (full HUD in Stage 18): a persistent WAVE counter top-right,
+  the F2/console stats lines carry `wave=`, and the interstitial shows a
+  center notice.
 
 ### 3.9 Game states (Stage 17)
 

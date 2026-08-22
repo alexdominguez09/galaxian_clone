@@ -152,10 +152,10 @@ Manual:
 - [x] Zero lives → GameOver, no respawn
 
 ### Stage 16 — Waves
-- [ ] Wave N clears → interstitial → wave N+1 formation with correct params
-- [ ] Difficulty values stay within spec bounds for waves 1..20
-- [ ] 10 consecutive waves: no state corruption (headless scripted run)
-- [ ] Wave counter in HUD matches WaveManager state
+- [x] Wave N clears → interstitial → wave N+1 formation with correct params
+- [x] Difficulty values stay within spec bounds for waves 1..20
+- [x] 10 consecutive waves: no state corruption (headless scripted run)
+- [x] Wave counter in HUD matches WaveManager state
 
 ### Stage 17 — Game states
 - [ ] Every transition in the state graph works; illegal ones rejected

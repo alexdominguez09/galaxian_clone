@@ -255,7 +255,7 @@ void Game::fixedUpdate(double dt)
                             ? player_.position()
                             : Vector2{muzzle.x,
                                       static_cast<float>(kLogicalHeight)},
-                        ProjectileManager::kEnemySpeed);
+                        ProjectileManager::speedForWave(waves_.wave()));
                 }
             }
         }
@@ -298,6 +298,18 @@ void Game::fixedUpdate(double dt)
 
     effects_.update(dt);
 
+    // Stage 16: the wave lifecycle (spec §9) — runs last so the clear
+    // detection sees this step's post-combat state. On WaveAdvanced the
+    // manager has already rebuilt the formation and handed the new
+    // bounded parameters to the director.
+    const WaveManager::Event waveEvent =
+        waves_.update(dt, formation_, attacks_);
+    if (waveEvent == WaveManager::Event::WaveCleared) {
+        std::printf("Wave %d cleared\n", waves_.wave());
+    } else if (waveEvent == WaveManager::Event::WaveAdvanced) {
+        std::printf("Wave %d begins\n", waves_.wave());
+    }
+
     // These counters prove the loop runs a deterministic number of steps:
     // simTime_ must equal updateCount_ * dt at all times.
     ++updateCount_;
@@ -310,6 +322,18 @@ void Game::render()
     // (The dummy enemies and the Stage 4 action table were removed in
     // Stage 8; see DevScene.)
     devScene_.draw(renderer_);
+
+    // Stage 16 HUD bits (the full HUD lands in Stage 18): the wave
+    // counter top-right, and a center notice during the interstitial.
+    {
+        char hudLine[32];
+        std::snprintf(hudLine, sizeof(hudLine), "WAVE %d", waves_.wave());
+        renderer_.drawText(hudLine, {368.0f, 16.0f}, colors::kWhite);
+        if (waves_.interstitial()) {
+            renderer_.drawText("WAVE CLEAR", {168.0f, 272.0f},
+                               colors::kGreen);
+        }
+    }
 
     // Stage 8 (state-aware since Stage 11): the enemy formation. The 24x24
     // enemy sprite coincides with the collision box; slot members draw at
@@ -365,8 +389,8 @@ void Game::render()
         std::snprintf(line, sizeof(line), "FPS: %.1f  UPD/S: %.1f", fps_,
                       updatesPerSecond_);
         renderer_.drawText(line, {16.0f, 480.0f}, colors::kGreen);
-        std::snprintf(line, sizeof(line), "SIM: %.3f s  STEP: %.1f ms",
-                      simTime_, timestep_.dt() * 1000.0);
+        std::snprintf(line, sizeof(line), "SIM: %.3f s  STEP: %.1f ms  WAVE %d",
+                      simTime_, timestep_.dt() * 1000.0, waves_.wave());
         renderer_.drawText(line, {16.0f, 496.0f}, colors::kGreen);
         const int entities = formation_.aliveCount() +
                              (player_.alive() ? 1 : 0) + projectiles_.count();
@@ -445,11 +469,12 @@ void Game::reportStats()
                              (player_.alive() ? 1 : 0) + projectiles_.count();
         std::fprintf(stderr,
                       "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                      "sim_time=%.1fs entities=%d score=%d atk=%d lives=%d\n",
+                      "sim_time=%.1fs entities=%d score=%d atk=%d lives=%d "
+                      "wave=%d\n",
                       fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
                       simTime_, entities, score_.score(),
                       AttackDirector::activeAttacks(formation_),
-                      player_.lives());
+                      player_.lives(), waves_.wave());
     }
 
     lastReportSeconds_ = now;

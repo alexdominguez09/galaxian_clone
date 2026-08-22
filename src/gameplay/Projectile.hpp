@@ -58,6 +58,17 @@ public:
     // Enemy bullet speed (spec §8): 240 px/s base; wave-dependent scaling
     // (bounded <= 360) lands with the Stage 16 wave system.
     static constexpr double kEnemySpeed = 240.0;
+    static constexpr double kEnemyMaxSpeed = 360.0;
+
+    // Spec §8: the enemy bullet speed is wave-dependent but BOUNDED.
+    // Dev-tuned ramp (+40 px/s per completed wave from the 240 base),
+    // hard-capped at kEnemyMaxSpeed — never unbounded multiplication.
+    static double speedForWave(int wave)
+    {
+        const double w = (wave < 1) ? 1.0 : static_cast<double>(wave);
+        const double s = kEnemySpeed + 40.0 * (w - 1.0);
+        return (s > kEnemyMaxSpeed) ? kEnemyMaxSpeed : s;
+    }
     // Pool capacity: the player max (2) plus headroom for the enemy fire
     // that lands in Stage 14. A spawn into a full pool fails gracefully
     // (returns false) instead of growing.

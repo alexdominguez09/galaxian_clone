@@ -11,6 +11,7 @@
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
+#include "gameplay/WaveManager.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -159,6 +160,10 @@ private:
     // §7). Runs in fixedUpdate() after the formation moves; wave 1
     // defaults (1 attacker, 6 s interval) until Stage 16's waves arrive.
     AttackDirector attacks_;
+    // Stage 16: the wave lifecycle (spec §9) — clear detection, the 2 s
+    // interstitial, and the bounded difficulty handover to the next
+    // formation + director parameters.
+    WaveManager waves_;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this
