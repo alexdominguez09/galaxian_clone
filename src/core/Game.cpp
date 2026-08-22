@@ -141,16 +141,27 @@ void Game::processEvents()
     if (input_.wasPressed(Action::DebugDive)) {
         // Stage 11 debug aid (docs/test_plan.md Stage 11): send the first
         // idle formation enemy into a full dive cycle so the state machine
-        // is observable on screen (with F2's state labels). Stage 13's
-        // AttackDirector owns real selection; this stays a developer aid.
+        // is observable on screen. The attack pattern is picked from where
+        // the enemy sits (left half sweeps left, right half sweeps right).
+        // Stage 13's AttackDirector owns real selection; this stays a
+        // developer aid.
         bool launched = false;
         for (int row = 0; row < EnemyFormation::kRows && !launched; ++row) {
             for (int col = 0; col < EnemyFormation::kColumns && !launched;
                  ++col) {
                 Enemy& enemy = formation_.at(row, col);
-                if (enemy.state() == EnemyState::Formation &&
-                    enemy.beginDive()) {
-                    std::printf("Enemy (%d,%d) beginning dive\n", row, col);
+                if (enemy.state() != EnemyState::Formation) {
+                    continue;
+                }
+                const Rect box = enemy.bounds(formation_.position());
+                const DivePattern pattern =
+                    (box.x + box.width * 0.5f <=
+                     static_cast<float>(kLogicalWidth) * 0.5f)
+                        ? DivePattern::LeftDive
+                        : DivePattern::RightDive;
+                if (enemy.beginDive(pattern)) {
+                    std::printf("Enemy (%d,%d) beginning dive (%s)\n", row,
+                                col, divePatternName(pattern).data());
                     launched = true;
                 }
             }

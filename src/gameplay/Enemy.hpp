@@ -5,6 +5,8 @@
 #include "core/Constants.hpp"
 #include "core/Types.hpp"
 
+#include "gameplay/DivePath.hpp"
+
 namespace galaxian {
 
 // Enemy type (docs/game_spec.md §6.1). Data-driven: behavior comes from the
@@ -43,21 +45,21 @@ inline constexpr EnemyDefinition kEnemyDefinitions[kEnemyTypeCount] = {
 //   Formation → PreparingDive → Diving → Attacking → Returning → Formation
 //   any living state → Dead (terminal)
 //
-// Stage 11 proves the machine with SIMPLE paths (the plan's "do not
-// implement complex trajectories yet"); Stage 12 replaces Diving/Attacking/
-// Returning motion with the real Bézier trajectories without changing the
-// machine:
+// Motion per state (Stage 12 replaced the Stage 11 placeholder paths with
+// real parametric trajectories — the machine itself did not change):
 //
 //   - PreparingDive holds at its slot for kPrepareDurationSeconds (the
 //     AttackDirector of Stage 13 decides WHEN an enemy is selected; the
 //     short peel-off pause belongs to the enemy itself).
-//   - Diving descends straight down at definition().speed until the box's
-//     BOTTOM reaches kTurnPointY.
+//   - Diving follows the selected attack pattern's cubic Bézier
+//     (LeftDive / RightDive / CenterAttack, gameplay/DivePath) at
+//     definition().speed along its arc length; finishing it (t = 1) is
+//     the turn point.
 //   - Attacking dashes horizontally (towards the nearer screen edge) until
 //     the box is fully off-screen.
-//   - Returning homes to its LIVE slot position (formation world position +
-//     slot offset, recomputed every step so a swaying formation is tracked)
-//     and snaps exactly onto the slot when within one step's travel.
+//   - Returning follows a ReturnPath Bézier whose end is the LIVE slot
+//     position (re-targeted every step, spec §6.2 indirection); completing
+//     it snaps exactly onto the slot.
 enum class EnemyState {
     Formation,
     PreparingDive,
@@ -100,13 +102,11 @@ public:
     static constexpr float kWidth = 24.0f;
     static constexpr float kHeight = 24.0f;
 
-    // Stage 11 simple-path constants (Stage 12 replaces the paths, not the
-    // machine). The diver pauses at its slot for kPrepareDurationSeconds,
-    // dives until its box bottom reaches kTurnPointY (40 px above the
-    // player's start top edge, spec §5), then dashes off-screen and homes
-    // back to its slot.
+    // Stage 11/12 constants. The diver pauses at its slot for
+    // kPrepareDurationSeconds, then follows its attack pattern's Bézier
+    // down to the pull-out (416 px below the peel-off point), dashes off
+    // screen, and arcs back to its slot.
     static constexpr double kPrepareDurationSeconds = 0.5;
-    static constexpr float kTurnPointY = 480.0f;
 
     Enemy() = default;
 
@@ -147,17 +147,22 @@ public:
     void kill();
 
     // Convenience for selection (the future AttackDirector, debug aids):
-    // Formation -> PreparingDive. Returns false if not in Formation.
-    bool beginDive();
+    // Formation -> PreparingDive with the given attack pattern (the
+    // pattern is followed once Diving starts). Returns false if not in
+    // Formation.
+    bool beginDive(DivePattern pattern);
 
     // Advances one fixed simulation step (docs/architecture.md §3.1).
     //
     // `formationPosition` is the formation anchor's CURRENT world position.
     // Formation members do not move themselves (they ride the lattice);
-    // PreparingDive counts down; Diving/Attacking/Returning follow the
-    // simple paths at definition().speed, with Returning homing onto the
-    // live slot position. dt <= 0 is a no-op.
+    // PreparingDive counts down; Diving/Attacking/Returning follow their
+    // trajectories at definition().speed along the arc, with Returning
+    // re-targeted at the live slot position every step. dt <= 0 is a no-op.
     void update(double dt, Vector2 formationPosition);
+
+    // The pattern selected for the current/next dive (diagnostics/tests).
+    DivePattern divePattern() const { return divePattern_; }
 
 private:
     EnemyType type_ = EnemyType::Scout;
@@ -169,6 +174,12 @@ private:
     // -1 towards the left edge, +1 towards the right edge.
     float attackDirection_ = -1.0f;
     double prepareRemaining_ = 0.0;
+    // Stage 12: the active trajectory and its parameter follower. One
+    // storage slot is reused: Diving holds an attack pattern, Returning
+    // rebuilds it as a ReturnPath when the attack ends off-screen.
+    DivePattern divePattern_ = DivePattern::CenterAttack;
+    DivePath path_{};
+    PathFollower follower_;
 };
 
 }  // namespace galaxian

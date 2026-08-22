@@ -121,11 +121,11 @@ Manual:
 - [x] F2/debug shows state labels (FORMATION/DIVING/RETURNING) above enemies
 
 ### Stage 12 — Dive trajectories
-- [ ] Bézier evaluation: P(0)=P0, P(1)=P3, symmetry checks
-- [ ] t stays in [0,1] under 10 000 headless updates
-- [ ] Enemy follows full path and finishes (t=1 → state transition)
-- [ ] Left/right/center/return paths all complete and terminate in valid state
-- [ ] Path speed is frame-rate independent (arc-length or parametric check)
+- [x] Bézier evaluation: P(0)=P0, P(1)=P3, symmetry checks
+- [x] t stays in [0,1] under 10 000 headless updates
+- [x] Enemy follows full path and finishes (t=1 → state transition)
+- [x] Left/right/center/return paths all complete and terminate in valid state
+- [x] Path speed is frame-rate independent (arc-length or parametric check)
 
 ### Stage 13 — Attack director
 - [ ] Attack count never exceeds wave maximum

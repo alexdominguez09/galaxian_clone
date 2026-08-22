@@ -1231,18 +1231,19 @@ TEST_CASE("enemy state machine: a diver renders away from its slot "
 
     EnemyFormation formation;  // static anchor in this test
     Enemy& scout = formation.at(4, 0);  // Scout green, slot box (32, 208)
-    REQUIRE(scout.beginDive());
+    REQUIRE(scout.beginDive(DivePattern::CenterAttack));
 
-    // 80 updates = 30 preparing + 50 diving steps of 140 px/s:
-    // scratch value top = 324.666870, so the box spans ~[324.7, 348.7].
+    // 110 updates = 30 preparing + 80 along the CenterAttack arc:
+    // scratch value t = 0.445173, top y = 300.807373 (box spans ~[300.8,
+    // 324.8]).
     const double dt = 1.0 / 60.0;
-    for (int i = 0; i < 80; ++i) {
+    for (int i = 0; i < 110; ++i) {
         scout.update(dt, formation.position());
     }
     REQUIRE(scout.state() == EnemyState::Diving);
     const Vector2 pos = scout.screenPosition(formation.position());
-    CHECK(pos.y == Catch::Approx(324.666870).margin(1e-3));
-    const int boxTop = static_cast<int>(pos.y);          // 324
+    CHECK(pos.y == Catch::Approx(300.807373).margin(1e-3));
+    const int boxTop = static_cast<int>(pos.y);          // 300
     const int centerX = static_cast<int>(pos.x) + 12;    // 44
 
     scene.draw(renderer);

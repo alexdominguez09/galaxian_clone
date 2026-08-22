@@ -75,9 +75,13 @@ void Enemy::kill()
     transitionTo(EnemyState::Dead);
 }
 
-bool Enemy::beginDive()
+bool Enemy::beginDive(DivePattern pattern)
 {
-    return transitionTo(EnemyState::PreparingDive);
+    if (!transitionTo(EnemyState::PreparingDive)) {
+        return false;
+    }
+    divePattern_ = pattern;
+    return true;
 }
 
 void Enemy::update(double dt, Vector2 formationPosition)
@@ -95,21 +99,25 @@ void Enemy::update(double dt, Vector2 formationPosition)
             return;
 
         case EnemyState::PreparingDive:
-            // Hold at the slot for the peel-off pause, then freeze the
-            // dive start at wherever the slot currently sits.
+            // Hold at the slot for the peel-off pause, then start the
+            // selected attack pattern from wherever the slot currently is.
             prepareRemaining_ -= dt;
             if (prepareRemaining_ <= kPrepareEpsilon) {
                 state_ = EnemyState::Diving;
                 divePosition_ = formationPosition + slotOffset_;
+                path_ = DivePath::make(divePattern_, divePosition_);
+                follower_.begin();
             }
             return;
 
         case EnemyState::Diving:
-            // Simple path (Stage 11): straight down until the box's bottom
-            // reaches the turn point.
-            divePosition_.y +=
-                definition().speed * static_cast<float>(dt);
-            if (divePosition_.y + kHeight >= kTurnPointY) {
+            // Stage 12: follow the attack pattern's cubic Bézier at
+            // definition().speed along its arc length; finishing the path
+            // (t = 1) is the turn point.
+            follower_.advance(path_, definition().speed *
+                                         static_cast<float>(dt));
+            divePosition_ = path_.curve().evaluate(follower_.t());
+            if (follower_.finished()) {
                 state_ = EnemyState::Attacking;
                 // Dash towards the nearer vertical edge.
                 attackDirection_ =
@@ -130,26 +138,33 @@ void Enemy::update(double dt, Vector2 formationPosition)
             const bool offRight =
                 divePosition_.x >= static_cast<float>(kLogicalWidth);
             if (offLeft || offRight) {
+                // Stage 12: build the ReturnPath from here back to the
+                // slot as it sits RIGHT NOW; every following step
+                // re-targets its end at the live slot, so a swaying
+                // formation is tracked and P(1) is always exactly the slot.
                 state_ = EnemyState::Returning;
+                path_ = DivePath::make(DivePattern::ReturnPath, divePosition_,
+                                       formationPosition + slotOffset_);
+                follower_.begin();
             }
             return;
         }
 
         case EnemyState::Returning: {
-            // Home to the LIVE slot position: recomputed every step, so a
-            // swaying formation is tracked (spec §6.2 indirection).
+            // Follow the return arc with its end re-targeted at the LIVE
+            // slot position each step (spec §6.2 indirection). The pacing
+            // uses the arc length captured at entry — the shape barely
+            // changes as the formation sways.
             const Vector2 target = formationPosition + slotOffset_;
-            const Vector2 delta = target - divePosition_;
-            const float dist =
-                std::sqrt(delta.x * delta.x + delta.y * delta.y);
-            const float travel =
-                definition().speed * static_cast<float>(dt);
-            if (dist <= travel) {
-                divePosition_ = target;  // snap exactly onto the slot
+            const CubicBezier live = path_.endCurve(target);
+            follower_.advance(path_, definition().speed *
+                                         static_cast<float>(dt));
+            divePosition_ = live.evaluate(follower_.t());
+            if (follower_.finished()) {
+                // P(1) == target bit-exactly; assign explicitly so the
+                // snap is self-evident.
+                divePosition_ = target;
                 state_ = EnemyState::Formation;
-            } else {
-                divePosition_ = divePosition_ +
-                                delta * (travel / dist);
             }
             return;
         }

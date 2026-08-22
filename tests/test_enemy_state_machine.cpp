@@ -1,23 +1,22 @@
-// Stage 11 enemy state machine tests (docs/test_plan.md, Stage 11).
+// Stage 11/12 enemy state machine tests (docs/test_plan.md).
 //
-// Pure logic: the machine and the simple paths live in gameplay/Enemy
-// (SDL-free, dependency rule); no window, no SDL init, no rendering.
+// Pure logic: the machine and the trajectories live in gameplay/Enemy +
+// gameplay/DivePath (SDL-free, dependency rule); no window, no SDL init,
+// no rendering.
 //
-// Exact-value notes (derived with a scratch program mirroring the game's
-// exact float32 operations; Commander speed 70 px/s -> per fixed step
-// exactly 1.166666746 px):
-//   * Commander at slot (0,3) of an anchored formation: box top-left
-//     (176, 64), bottom starts at 88.
-//   * Prepare (0.5 s): expires on the 30th update (remaining ~1e-16 s,
-//     within the 1 ns tolerance).
-//   * Dive from bottom 88 until bottom >= 480: 337 updates (float
-//     accumulation puts the crossing one step past the ideal 336);
-//     final top y = 457.165344.
-//   * Attack dash left (center x 188 <= 224 -> nearer edge is left):
-//     fully off-screen after 172 updates; final x = -24.666767.
-//   * Return homing to the live slot: snaps onto it on the 379th update,
-//     bit-exact at (176, 64).
-//   * Full automatic cycle: 30 + 337 + 172 + 379 = 918 updates = 15.3 s.
+// Exact-value notes (scratch-derived by LINKING the real DivePath code —
+// Commander speed 70 px/s = 1.166666746 px per fixed step):
+//   * LeftDive from the Commander (0,3) slot box (176, 64): arc length
+//     480.442596 px -> the path finishes on the 412th update, pull-out at
+//     P3 = (80, 480) exactly. The first control point (-72, -36) makes the
+//     enemy RISE out of its slot into the loop.
+//   * Left dash from x = 80 until fully off-screen: 90 updates, ends at
+//     x = -24.999996.
+//   * ReturnPath from there to the slot (176, 64): arc length 515.623962
+//     px -> completes on the 442nd update with a bit-exact rejoin.
+//   * Full automatic cycle: 30 + 412 + 90 + 442 = 974 updates = 16.23 s.
+//   * Scout CenterAttack from (32, 208): length 419.3125; after 80 updates
+//     t = 0.445173 and top y = 300.807373.
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -28,6 +27,7 @@
 
 #include "core/Constants.hpp"
 #include "gameplay/Combat.hpp"
+#include "gameplay/DivePath.hpp"
 #include "gameplay/Effects.hpp"
 #include "gameplay/Enemy.hpp"
 #include "gameplay/EnemyFormation.hpp"
@@ -183,15 +183,19 @@ TEST_CASE("enemy state machine: Dead reachable from every living state, "
     dead.update(kDt, EnemyFormation::kAnchor);
     CHECK(dead.state() == EnemyState::Dead);
     // ...and beginDive is rejected.
-    CHECK_FALSE(dead.beginDive());
+    CHECK_FALSE(dead.beginDive(DivePattern::CenterAttack));
 }
 
-TEST_CASE("enemy state machine: full automatic cycle with simple paths "
+TEST_CASE("enemy state machine: full automatic cycle with Bezier paths "
           "(Commander at (0,3))",
           "[enemy][statemachine]")
 {
     // Directly driven enemy against a FIXED anchor so every step count is
-    // exact (scratch-verified; see the file header).
+    // exact. Scratch-derived against the real DivePath code (see header):
+    // LeftDive from (176, 64) is 480.442596 px long -> 412 updates at the
+    // Commander's 70 px/s, ending at the pull-out (80, 480); the left dash
+    // exits after 90 more; the ReturnPath (515.623962 px) completes on the
+    // 442nd update with a bit-exact rejoin.
     Enemy enemy(EnemyType::Commander, EnemyFormation::slotOffset(0, 3));
     const Vector2 fp = EnemyFormation::kAnchor;  // (32, 64)
 
@@ -202,9 +206,10 @@ TEST_CASE("enemy state machine: full automatic cycle with simple paths "
     };
     auto step1 = [&]() { enemy.update(kDt, fp); };
 
-    // 1) Selection: leave the formation.
-    REQUIRE(enemy.beginDive());
+    // 1) Selection: leave the formation with an explicit attack pattern.
+    REQUIRE(enemy.beginDive(DivePattern::LeftDive));
     CHECK(enemy.state() == EnemyState::PreparingDive);
+    CHECK(enemy.divePattern() == DivePattern::LeftDive);
     // While preparing, the enemy sits on its slot (rides the lattice).
     CHECK(enemy.bounds(fp) == Rect{176.0f, 64.0f, 24.0f, 24.0f});
 
@@ -213,40 +218,32 @@ TEST_CASE("enemy state machine: full automatic cycle with simple paths "
     CHECK(enemy.state() == EnemyState::PreparingDive);
     step1();  // the 30th fires the peel-off
     CHECK(enemy.state() == EnemyState::Diving);
-    // The dive froze its start wherever the slot was.
+    // The path froze its start wherever the slot was.
     CHECK(enemy.divePosition() == Vector2{176.0f, 64.0f});
 
-    // 3) Diving: straight down until the box bottom reaches the turn
-    //    point. 336 updates leave it just under the line (scratch: top
-    //    455.998688, bottom 479.998688 < 480); the 337th crosses it.
-    stepN(336);
+    // 3) Diving follows the Bezier. The curve's first control point pulls
+    //    UP and outward (-72, -36): the classic flip out of the formation.
+    step1();
+    CHECK(enemy.divePosition().y < 64.0f);  // rising into the loop
+    stepN(410);                             // 411 diving updates so far
     CHECK(enemy.state() == EnemyState::Diving);
-    CHECK(enemy.divePosition().y ==
-          Catch::Approx(455.998687744).margin(1e-4));
-    step1();  // the 337th crosses the turn point
+    step1();  // the 412th finishes the path (t = 1)
     CHECK(enemy.state() == EnemyState::Attacking);
-    // Scratch value: final top y = 457.165344, bottom = 481.165344 >= 480.
-    CHECK(enemy.divePosition().y == Catch::Approx(457.165344).margin(1e-4));
-    CHECK(enemy.bounds(fp).bottom() >= Enemy::kTurnPointY);
-    // It travelled straight down: x untouched.
-    CHECK(enemy.divePosition().x == 176.0f);
+    // Pull-out exactly at P3.
+    CHECK(enemy.divePosition() == Vector2{80.0f, 480.0f});
 
-    // 4) Attacking: dashes left (center x 188 <= 224 -> nearer edge),
-    //    exits fully off-screen after 172 updates.
-    CHECK(enemy.divePosition().x + Enemy::kWidth * 0.5f <=
-          static_cast<float>(kLogicalWidth) * 0.5f);  // left half -> LEFT
-    stepN(171);
+    // 4) Attacking: dashes left (pull-out center x 92 <= 224), exits fully
+    //    off-screen after 90 updates.
+    stepN(89);
     CHECK(enemy.state() == EnemyState::Attacking);
-    step1();  // the 172nd clears the screen edge
+    step1();  // the 90th clears the screen edge
     CHECK(enemy.state() == EnemyState::Returning);
-    // Scratch value: final x = -24.666767 (right edge -0.667 <= 0).
-    CHECK(enemy.divePosition().x == Catch::Approx(-24.666767).margin(1e-4));
     CHECK(enemy.bounds(fp).right() <= 0.0f);
 
-    // 5) Returning: homes to the live slot and snaps EXACTLY onto it.
-    stepN(378);
+    // 5) Returning: follows the return arc and snaps EXACTLY onto the slot.
+    stepN(441);
     CHECK(enemy.state() == EnemyState::Returning);
-    step1();  // the 379th closes the remaining distance
+    step1();  // the 442nd closes the path
     CHECK(enemy.state() == EnemyState::Formation);
     CHECK(enemy.divePosition() == Vector2{176.0f, 64.0f});  // bit-exact
     CHECK(enemy.bounds(fp) == Rect{176.0f, 64.0f, 24.0f, 24.0f});
@@ -256,7 +253,7 @@ TEST_CASE("enemy state machine: full automatic cycle with simple paths "
     CHECK(enemy.alive());
 
     // Total cycle time matches the scratch derivation.
-    CHECK(30 + 337 + 172 + 379 == 918);  // 15.3 s of simulation
+    CHECK(30 + 412 + 90 + 442 == 974);  // 16.23 s of simulation
 }
 
 TEST_CASE("enemy state machine: dive cycle leaves the formation uncorrupted",
@@ -276,7 +273,7 @@ TEST_CASE("enemy state machine: dive cycle leaves the formation uncorrupted",
     }
 
     Enemy& diver = formation.at(0, 3);
-    REQUIRE(diver.beginDive());
+    REQUIRE(diver.beginDive(DivePattern::CenterAttack));
 
     bool leftFormation = false;
     bool sawDiving = false;
@@ -332,21 +329,21 @@ TEST_CASE("enemy state machine: combat kills a diver at its actual position",
     ProjectileManager projectiles;
 
     Enemy& diver = formation.at(4, 0);  // Scout, slot box (32, 208)
-    REQUIRE(diver.beginDive());
+    REQUIRE(diver.beginDive(DivePattern::CenterAttack));
     // Drive the prepare phase directly (the enemy's own update; the
     // formation stays put here).
     for (int i = 0; i < 30; ++i) {
         diver.update(kDt, formation.position());
     }
     REQUIRE(diver.state() == EnemyState::Diving);
-    // Descend visibly: 50 steps * 140 px/s * (1/60).
-    for (int i = 0; i < 50; ++i) {
+    // Follow the Center attack arc for 80 updates: scratch value for the
+    // path parameter t = 0.445173, top y = 300.807373.
+    for (int i = 0; i < 80; ++i) {
         diver.update(kDt, formation.position());
     }
     const Rect trueBox = diver.bounds(formation.position());
-    // Scratch: top = 324.666870 after 50 dive steps of 2.333333492 px.
-    CHECK(trueBox.top() == Catch::Approx(324.666870).margin(1e-3));
-    CHECK(trueBox.top() > 300.0f);  // clearly away from the slot
+    CHECK(trueBox.top() == Catch::Approx(300.807373).margin(1e-3));
+    CHECK(trueBox.top() > 280.0f);  // clearly away from the slot
     // The slot itself is empty space now.
     CHECK(formation.boundsOf(4, 0) == Rect{32.0f, 208.0f, 24.0f, 24.0f});
     CHECK(trueBox != formation.boundsOf(4, 0));
@@ -371,7 +368,7 @@ TEST_CASE("enemy state machine: dt <= 0 never advances a diver",
           "[enemy][statemachine]")
 {
     Enemy enemy(EnemyType::Scout, Vector2{0.0f, 0.0f});
-    REQUIRE(enemy.beginDive());
+    REQUIRE(enemy.beginDive(DivePattern::CenterAttack));
     for (int i = 0; i < 60; ++i) {
         enemy.update(0.0, EnemyFormation::kAnchor);
         enemy.update(-kDt, EnemyFormation::kAnchor);

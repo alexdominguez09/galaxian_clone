@@ -280,6 +280,33 @@ Dead}`):
   RETURNING) above every living enemy. Real selection authority is
   Stage 13's AttackDirector.
 
+Stage 12 replaces the placeholder motion with real trajectories
+(`gameplay/DivePath.{hpp,cpp}`):
+
+- **`CubicBezier`**: the spec §6.4 parametric curve,
+  `P(t) = (1−t)³P0 + 3(1−t)²tP1 + 3(1−t)t²P2 + t³P3`. Pure math; endpoint
+  shortcuts make `P(0)` and `P(1)` bit-exact (the rejoin snap relies on
+  this); interior points use de Casteljau. No hard-coded frame tables
+  anywhere.
+- **Four patterns** (`DivePattern`, deterministic relative offsets from the
+  peel-off point, documented in DivePath.hpp): LeftDive / RightDive are
+  exact mirrors that flip up-out of the slot then sweep down-outward;
+  CenterAttack plunges through the middle; ReturnPath arcs from the attack
+  end back up into the slot from its own side. All dives end 416 px below
+  their start.
+- **`PathFollower`**: advances t by PIXELS travelled —
+  `t += pixels / arcLength` (16-chord sampled length, computed once),
+  clamped to [0, 1] forever. World-space speed is therefore always
+  `definition().speed` regardless of curve shape, and the advance depends
+  only on accumulated distance: frame-rate independent by construction.
+- **Dynamic return end**: a returning enemy evaluates its curve with the
+  end re-targeted at the LIVE slot every step (`CubicBezier::withEnd`),
+  so the tail tracks the oscillating formation while the shape stays put —
+  and completion still snaps bit-exact onto the slot.
+- **Selection for now**: `Enemy::beginDive(pattern)` takes the pattern
+  explicitly (the F3 debug aid picks left/right from the enemy's screen
+  half). Stage 13's AttackDirector owns the real choice.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position

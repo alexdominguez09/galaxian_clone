@@ -39,6 +39,7 @@ add_library(galaxian_core STATIC
     src/graphics/DevScene.cpp
     src/input/InputManager.cpp
     src/gameplay/Combat.cpp
+    src/gameplay/DivePath.cpp
     src/gameplay/Effects.cpp
     src/gameplay/Enemy.cpp
     src/gameplay/EnemyFormation.cpp
