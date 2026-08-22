@@ -85,6 +85,16 @@ void ProjectileManager::update(double dt)
     }
 }
 
+bool ProjectileManager::removeAt(int index)
+{
+    if (index < 0 || index >= count_) {
+        return false;
+    }
+    --count_;
+    pool_[index] = pool_[count_];  // swap-remove (self-copy when it was last)
+    return true;
+}
+
 void ProjectileManager::reset()
 {
     count_ = 0;

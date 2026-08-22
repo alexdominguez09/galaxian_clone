@@ -55,6 +55,8 @@ src/
 │   ├── AttackDirector.{hpp,cpp}
 │   ├── Projectile.{hpp,cpp}       # shared player/enemy system
 │   ├── Collision.{hpp,cpp}        # pure AABB math (header-only OK)
+│   ├── Combat.{hpp,cpp}           # bullet vs enemy resolution (Stage 9)
+│   ├── Effects.{hpp,cpp}          # placeholder FX (Stage 9; Stage 19 art)
 │   ├── DivePath.{hpp,cpp}         # Bézier/waypoint paths
 │   ├── ScoreManager.{hpp,cpp}
 │   └── WaveManager.{hpp,cpp}
@@ -267,6 +269,36 @@ the run, with lives, a respawn timer, and invulnerability. Death is idempotent
 per frame: multiple collisions in one frame remove exactly one life.
 
 ### 3.8 Waves and scoring (Stages 9, 16, 18)
+
+Stage 9 implements the combat chain and the scoring core
+(`gameplay/Combat.{hpp,cpp}`, `gameplay/ScoreManager.{hpp,cpp}`,
+`gameplay/Effects.{hpp,cpp}`):
+
+- **SDL-free** (dependency rule, §1): `combat::resolvePlayerBullets` is pure
+  logic that `Game` calls once per fixed step, **after**
+  `ProjectileManager::update(dt)`, so it sees each bullet's new position.
+  The F2 stats overlay shows the score; the full HUD (Stage 18) and high
+  score (Stage 22) build on `ScoreManager`.
+- **One bullet, one kill:** for each Player-owned bullet (pool order), the
+  first living enemy whose box intersects the bullet box — a row-major scan
+  of the grid (spec §6.2) — is killed and the bullet is **consumed**
+  (`ProjectileManager::removeAt`, swap-remove). A 4×10 bullet can overlap at
+  most one 24×24 box of the spec grid, so the rule is also structural. A
+  bullet that overlaps only dead enemies passes through untouched (holes,
+  spec §6.3), and a dead enemy is never scored twice.
+- **Ownership:** enemy-owned bullets are skipped (spec §8); Stage 14
+  resolves them against the player.
+- **`ScoreManager`:** score + kill count. `addKill(type, multiplier = 1)`
+  reads the type's base points from the `kEnemyDefinitions` table (spec
+  §6.1) — no duplicated score table. The multiplier is 1 in Stage 9; Stage
+  11+ passes 2 for diving enemies (spec §6.4). `addPoints` covers wave
+  bonuses; `reset` starts a fresh game.
+- **`EffectManager`:** the placeholder destruction effect — a `0.25 s` box
+  at the kill site, fixed 16-slot pool (a full pool fails an add
+  gracefully), swap-remove on expiry. Stage 19 replaces it with the
+  explosion animation; the gameplay code that spawns it stays the same.
+
+The deferred pieces land later:
 
 - `WaveManager`: detects formation cleared, runs interstitial, spawns next
   formation with bounded difficulty parameters.

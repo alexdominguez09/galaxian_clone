@@ -83,6 +83,12 @@ public:
     // transitions in Stage 17, tests).
     void reset();
 
+    // Removes the live projectile at pool `index` (swap-remove, the same
+    // scheme update() uses for culling). Returns false when `index` is out
+    // of range. Stage 9 uses this to consume a bullet that hit an enemy;
+    // it does not touch the per-owner fire cooldowns.
+    bool removeAt(int index);
+
     // Total live projectiles.
     int count() const { return count_; }
     // Live projectiles owned by `owner`.

@@ -5,9 +5,11 @@
 #include "Constants.hpp"
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
+#include "gameplay/Effects.hpp"
 #include "gameplay/EnemyFormation.hpp"
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
+#include "gameplay/ScoreManager.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -37,7 +39,12 @@ namespace galaxian {
 // static enemy formation: the 40-enemy grid (gameplay/EnemyFormation,
 // SDL-free) is drawn each frame from the dev-art enemy textures (the
 // spriteIndex -> texture mapping lives here, the composition root) and its
-// boxes join the F1 collision overlay.
+// boxes join the F1 collision overlay. Stage 9 connects the systems: after
+// the projectiles move in the fixed step, gameplay/combat
+// (resolvePlayerBullets) checks player bullets against the formation — a
+// hit kills the enemy, consumes the bullet, awards the type's base points
+// through the ScoreManager (the central scoring subsystem, SDL-free), and
+// spawns a placeholder destruction effect (EffectManager) drawn here.
 class Game {
 public:
     Game() = default;
@@ -118,6 +125,14 @@ private:
     // is a graphics concern kept in the composition root, so gameplay/
     // stays SDL-free.
     const Texture* enemyTextures_[kEnemyTypeCount] = {};
+    // Stage 9: the central scoring subsystem (SDL-free). Awarded by
+    // gameplay/combat when a player bullet destroys an enemy; shown in the
+    // F2 stats overlay (the full HUD lands in Stage 18).
+    ScoreManager score_;
+    // Stage 9: placeholder destruction effects (a box at each recent kill
+    // site). Updated in fixedUpdate() and drawn in render(); Stage 19
+    // replaces the placeholder with the explosion animation.
+    EffectManager effects_;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

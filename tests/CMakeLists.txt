@@ -38,6 +38,8 @@ add_executable(galaxian_tests
     test_projectiles.cpp
     test_collision.cpp
     test_enemy_formation.cpp
+    test_scoring.cpp
+    test_combat.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE
     galaxian_core

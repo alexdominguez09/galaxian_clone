@@ -19,9 +19,12 @@
 #include <vector>
 
 #include "core/Types.hpp"
+#include "gameplay/Combat.hpp"
+#include "gameplay/Effects.hpp"
 #include "gameplay/EnemyFormation.hpp"
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
+#include "gameplay/ScoreManager.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
@@ -975,6 +978,164 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
         CHECK(isColor(pixelAt(frame, 224, 499), colors::kBullet));
         CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        SDL_FreeSurface(frame);
+    }
+
+    renderer.shutdown();
+}
+
+// Stage 9 end-to-end (docs/test_plan.md, Stage 9): a player bullet that
+// reaches the formation destroys the enemy it overlaps — the enemy's pixels
+// become the white placeholder effect, the bullet is consumed, the
+// ScoreManager holds the type's points, and after the effect expires
+// (0.25 s = 15 fixed steps) a permanent hole remains. A second shot flies
+// through the dead hole and destroys the next row. Pixel-verified
+// headlessly, mirroring Game::run()/fixedUpdate()/render() the same way the
+// Stage 5/6/7 tests do.
+TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
+          "[combat][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+    const Texture* playerTex = renderer.texture(DevArt::kPlayer);
+    const Texture* bulletTex = renderer.texture(DevArt::kBullet);
+    REQUIRE(playerTex != nullptr);
+    REQUIRE(bulletTex != nullptr);
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
+
+    Player player;  // stays at the start center (224, 528)
+    EnemyFormation formation;
+    ProjectileManager projectiles;
+    ScoreManager score;
+    EffectManager effects;
+    InputManager input;
+    const double dt = 1.0 / 60.0;
+
+    // One simulated Game frame, mirroring Game::run()/fixedUpdate()
+    // (docs/architecture.md §3.1/§3.3): poll input, fire on the press edge,
+    // step the player and bullets, resolve combat, step the effects, clear
+    // the edges. The player never moves (direction 0).
+    auto stepFrame = [&]() {
+        input.pollEvents();
+        player.update(dt, 0.0f);
+        if (input.wasPressed(Action::Fire) && player.alive()) {
+            player.fire();
+            projectiles.tryFirePlayer(player);
+        }
+        projectiles.update(dt);
+        combat::resolvePlayerBullets(projectiles, formation, score, effects);
+        effects.update(dt);
+        input.endFrame();
+    };
+    // Mirrors Game::render(): the dev scene, the formation (dead enemies
+    // leave holes), the placeholder effects, then the gameplay objects.
+    auto drawFrame = [&]() {
+        scene.draw(renderer);
+        drawFormation(renderer, formation, enemyTextures);
+        for (int i = 0; i < effects.count(); ++i) {
+            renderer.drawFilledRect(effects.effect(i).bounds(),
+                                    colors::kEffect);
+        }
+        if (player.alive()) {
+            renderer.drawSprite(*playerTex, player.bounds().position());
+        }
+        for (int i = 0; i < projectiles.count(); ++i) {
+            renderer.drawSprite(*bulletTex,
+                                 projectiles.projectile(i).position);
+        }
+        renderer.present();
+    };
+    auto readPixels = [&]() {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        return frame;
+    };
+
+    // The player's bullets spawn at box x 222..226, which overlaps column 4
+    // (boxes x 224..248) but no other column. Row 4 col 4 is a Scout (green,
+    // center pixel (236, 220)); row 3 col 4 is a Scout at (236, 184).
+    drawFrame();
+    {
+        SDL_Surface* frame = readPixels();
+        CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyGreen));  // r4c4
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));  // r3c4
+        SDL_FreeSurface(frame);
+    }
+    CHECK(formation.aliveCount() == 40);
+    CHECK(score.score() == 0);
+
+    // Shot 1 (frame 1): the bullet flies up 8 px per step (480 px/s) and
+    // first overlaps the row-4 col-4 box on its 35th step (y = 230).
+    drainSdlEvents();  // drop spurious window events from setup/present
+    input.injectKeyDown(SDLK_SPACE);
+    for (int frame = 1; frame <= 34; ++frame) {
+        stepFrame();
+    }
+    CHECK(formation.at(4, 4).alive());  // not reached yet (y = 238)
+    CHECK(score.score() == 0);
+    stepFrame();  // frame 35
+    CHECK_FALSE(formation.at(4, 4).alive());
+    CHECK(score.score() == 50);  // Scout points
+    CHECK(score.kills() == 1);
+    CHECK(formation.aliveCount() == 39);
+    CHECK(effects.count() == 1);
+    CHECK(effects.effect(0).bounds() == Rect{224.0f, 208.0f, 24.0f, 24.0f});
+    drawFrame();
+    {
+        SDL_Surface* frame = readPixels();
+        // The kill site shows the white placeholder effect (over the hole).
+        CHECK(isColor(pixelAt(frame, 236, 220), colors::kEffect));
+        CHECK(isColor(pixelAt(frame, 225, 209), colors::kEffect));  // box TL
+        // The rest of the formation is untouched.
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));  // r3c4
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));      // r0c0
+        SDL_FreeSurface(frame);
+    }
+
+    // The effect lasts 0.25 s = 15 fixed steps: added during frame 35, it
+    // expires during frame 49. Idle until it is gone; the hole is plain
+    // background afterwards.
+    for (int frame = 36; frame <= 50; ++frame) {
+        stepFrame();
+    }
+    CHECK(effects.count() == 0);
+    drawFrame();
+    {
+        SDL_Surface* frame = readPixels();
+        CHECK(isColor(pixelAt(frame, 236, 220), colors::kBlack));  // the hole
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));
+        SDL_FreeSurface(frame);
+    }
+
+    // Shot 2 (frame 51, a fresh press edge after releasing): the 0.35 s
+    // cooldown has long elapsed. The bullet passes through the dead row-4
+    // hole (steps 35-38 of its flight) and kills row 3 col 4 on its 40th
+    // step (frame 51 + 39 = 90) for a second 50 points.
+    drainSdlEvents();  // drop spurious window events from the present above
+    input.injectKeyUp(SDLK_SPACE);
+    input.injectKeyDown(SDLK_SPACE);
+    for (int frame = 51; frame <= 90; ++frame) {
+        stepFrame();
+    }
+    CHECK_FALSE(formation.at(3, 4).alive());
+    CHECK_FALSE(formation.at(4, 4).alive());
+    CHECK(score.score() == 100);  // 50 + 50: the dead hole was NOT re-scored
+    CHECK(score.kills() == 2);
+    CHECK(formation.aliveCount() == 38);
+    CHECK(effects.count() == 1);
+    CHECK(effects.effect(0).bounds() == Rect{224.0f, 172.0f, 24.0f, 24.0f});
+    drawFrame();
+    {
+        SDL_Surface* frame = readPixels();
+        // The row-3 hole shows the effect; the row-4 hole stays a hole.
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEffect));
+        CHECK(isColor(pixelAt(frame, 236, 220), colors::kBlack));
+        // Neighbors are intact.
+        CHECK(isColor(pixelAt(frame, 188, 184), colors::kEnemyGreen));  // r3c3
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));      // r0c0
         SDL_FreeSurface(frame);
     }
 

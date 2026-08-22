@@ -73,6 +73,9 @@ inline constexpr Color kBorder{96, 96, 140};
 inline constexpr Color kGreen{120, 255, 120};
 // Stage 7: F1 debug collision-box outline (magenta, unused elsewhere).
 inline constexpr Color kDebugBox{255, 0, 255};
+// Stage 9: placeholder destruction-effect box (white; Stage 19 replaces the
+// placeholder with the explosion animation and may change this color).
+inline constexpr Color kEffect{255, 255, 255};
 }  // namespace colors
 
 }  // namespace galaxian

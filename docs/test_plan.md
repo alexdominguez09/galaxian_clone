@@ -96,13 +96,14 @@ Manual:
 - [x] Deterministic: identical layout across 100 spawns
 
 ### Stage 9 — Player vs enemy combat
-- [ ] Bullet-enemy overlap → enemy dead, bullet consumed
-- [ ] Score increases by the type's point value
-- [ ] One bullet cannot kill two enemies (bullet consumed on first hit)
-- [ ] Dead enemy cannot be scored twice
-- [ ] Destroying all 40 enemies works without corruption
+- [x] Bullet-enemy overlap → enemy dead, bullet consumed
+- [x] Score increases by the type's point value
+- [x] One bullet cannot kill two enemies (bullet consumed on first hit)
+- [x] Dead enemy cannot be scored twice
+- [x] Destroying all 40 enemies works without corruption
+- [x] Placeholder destruction effect at the kill site (appears, then expires)
 Manual:
-- [ ] Entire stationary formation destroyable reliably
+- [x] Entire stationary formation destroyable reliably
 
 ### Stage 10 — Formation movement
 - [ ] Formation oscillates within screen bounds

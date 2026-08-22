@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "gameplay/Combat.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 
@@ -186,6 +187,13 @@ void Game::fixedUpdate(double dt)
     }
     projectiles_.update(dt);
 
+    // Stage 9: player bullets vs the formation (gameplay/Combat, SDL-free,
+    // runs after the move so it sees each bullet's new position): a hit
+    // kills the enemy, consumes the bullet, awards the type's base points
+    // through the ScoreManager, and spawns a placeholder effect.
+    combat::resolvePlayerBullets(projectiles_, formation_, score_, effects_);
+    effects_.update(dt);
+
     // These counters prove the loop runs a deterministic number of steps:
     // simTime_ must equal updateCount_ * dt at all times.
     ++updateCount_;
@@ -214,6 +222,13 @@ void Game::render()
                                      formation_.positionOf(row, col));
             }
         }
+    }
+
+    // Stage 9: the placeholder destruction effects — a box at each recent
+    // kill site (over the hole the dead enemy left). Stage 19 replaces
+    // these with the explosion animation.
+    for (int i = 0; i < effects_.count(); ++i) {
+        renderer_.drawFilledRect(effects_.effect(i).bounds(), colors::kEffect);
     }
 
     // Stage 5: the real Player (drawn on top of the test scene). The sprite
@@ -245,6 +260,11 @@ void Game::render()
         std::snprintf(line, sizeof(line), "ENT: %d (enemy %d, proj %d)",
                       entities, formation_.aliveCount(), projectiles_.count());
         renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
+        // Stage 9: the ScoreManager's value (the full HUD lands in
+        // Stage 18).
+        std::snprintf(line, sizeof(line), "SCORE: %d  KILLS: %d",
+                      score_.score(), score_.kills());
+        renderer_.drawText(line, {16.0f, 528.0f}, colors::kGreen);
     }
 
     // Stage 7 (extended in Stage 8): F1 collision-box debug overlay. Game
@@ -292,9 +312,9 @@ void Game::reportStats()
                              (player_.alive() ? 1 : 0) + projectiles_.count();
         std::fprintf(stderr,
                       "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                      "sim_time=%.1fs entities=%d\n",
+                      "sim_time=%.1fs entities=%d score=%d\n",
                       fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
-                      simTime_, entities);
+                      simTime_, entities, score_.score());
     }
 
     lastReportSeconds_ = now;
