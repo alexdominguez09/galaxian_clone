@@ -397,6 +397,31 @@ Stage 15 expands this to the full state machine:
 the run, with lives, a respawn timer, and invulnerability. Death is idempotent
 per frame: multiple collisions in one frame remove exactly one life.
 
+Stage 15 implements it (`gameplay/Player.{hpp,cpp}` +
+`combat::resolveEnemyThreats`):
+
+- **Lifecycle** (spec §5): `hit()` lands only while `vulnerable()`
+  (= plain Alive) — it consumes one life and starts **Dying** with the
+  full 1.5 s delay; multiple same-frame threats are absorbed because the
+  ship stops being vulnerable after the first. When the delay expires,
+  lives > 0 → transient **Respawning** (the composition root clears ALL
+  enemy projectiles — the "nearby" interpretation — and calls
+  `confirmRespawn()`), else **GameOver**, terminal until an external
+  new-game reset (Stage 17).
+- **Invulnerable** = at the start position for exactly 2.0 s: fully
+  controllable (moves AND fires) but immune; bullets fly through
+  unconsumed. Rendered blinking at ~4 Hz by `Game` (`simTime_`-driven);
+  hidden during Dying/Respawning/GameOver.
+- **`resolveEnemyThreats(projectiles, formation, player)`**: per fixed
+  step, the FIRST overlapping threat — Enemy-owned bullet first, then any
+  living enemy's state-aware body (divers count) — costs one life and is
+  consumed; everything else passes through. Ownership rules hold both ways:
+  Player bullets are never checked against the player, enemy bodies/bullets
+  never damage enemies. The colliding enemy body itself survives (the
+  frozen spec fixes only the player side).
+- Boundary determinism: the 1.5 s / 2.0 s countdowns use the codebase-wide
+  1 ns tolerance — expiry lands exactly on updates 90 / 120.
+
 ### 3.8 Waves and scoring (Stages 9, 16, 18)
 
 Stage 9 implements the combat chain and the scoring core

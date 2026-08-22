@@ -162,10 +162,23 @@ TEST_CASE("projectile: max 2 simultaneous player projectiles enforced",
     REQUIRE(mgr.count() == 2);
 }
 
-TEST_CASE("projectile: a dead player cannot fire", "[projectile]")
+TEST_CASE("projectile: a ship that cannot act cannot fire", "[projectile]")
 {
     Player player;
-    player.kill();
+    // Drive the Stage 15 lifecycle to GameOver: every hit costs one life,
+    // each Dying phase runs its full 1.5 s delay, respawns are confirmed
+    // and the invulnerability window elapses.
+    for (int life = 0; life < Player::kLives; ++life) {
+        REQUIRE(player.hit());
+        player.update(Player::kRespawnDelaySeconds + 0.01, 0.0f);
+        if (player.awaitingRespawnConfirm()) {
+            player.confirmRespawn();
+            player.update(Player::kInvulnerableSeconds + 0.01, 0.0f);
+            REQUIRE(player.vulnerable());  // back to plain Alive
+        }
+    }
+    REQUIRE(player.state() == PlayerState::GameOver);
+
     ProjectileManager mgr;
     REQUIRE_FALSE(mgr.tryFirePlayer(player));
     REQUIRE(mgr.count() == 0);

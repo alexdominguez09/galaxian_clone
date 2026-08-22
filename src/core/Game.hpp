@@ -61,6 +61,12 @@ namespace galaxian {
 // most one attacker per elapsed interval and never exceeds the wave's
 // simultaneous-attacker cap; selection is deterministic (front rows first,
 // rotating column cursor) and only ever picks Formation-state enemies.
+// Stage 14 gave divers an aimed shot budget; Stage 15 completes the player
+// lifecycle (spec §5): enemy bullets and diver bodies cost exactly one
+// life per frame, a 1.5 s Dying phase hands off to a respawn that clears
+// nearby enemy projectiles, places the ship at start with a 2 s
+// invulnerability blink (controllable but immune), and zero lives ends in
+// GameOver.
 class Game {
 public:
     Game() = default;

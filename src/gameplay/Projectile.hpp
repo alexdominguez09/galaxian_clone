@@ -93,6 +93,12 @@ public:
 
     // Removes all projectiles and resets the per-owner cooldowns (state
     // transitions in Stage 17, tests).
+    // Removes every live projectile owned by `owner` (swap-remove) and
+    // returns how many were removed. Fire cooldowns are untouched.
+    // Stage 15 uses this for the respawn-time clearing of nearby enemy
+    // projectiles (spec §5).
+    int removeAll(ProjectileOwner owner);
+
     void reset();
 
     // Removes the live projectile at pool `index` (swap-remove, the same

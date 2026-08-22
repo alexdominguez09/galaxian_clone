@@ -143,13 +143,13 @@ Manual:
 - [x] Aimed shots point at player position at fire time
 
 ### Stage 15 — Player death/lives
-- [ ] Enemy bullet collision → exactly one life removed
-- [ ] Enemy body collision → exactly one life removed
-- [ ] Two collisions in the same frame → exactly one life removed
-- [ ] Respawn after 1.5 s at start position with 2.0 s invulnerability
-- [ ] Invulnerable player ignores collisions
-- [ ] Respawn clears nearby enemy projectiles
-- [ ] Zero lives → GameOver, no respawn
+- [x] Enemy bullet collision → exactly one life removed
+- [x] Enemy body collision → exactly one life removed
+- [x] Two collisions in the same frame → exactly one life removed
+- [x] Respawn after 1.5 s at start position with 2.0 s invulnerability
+- [x] Invulnerable player ignores collisions
+- [x] Respawn clears nearby enemy projectiles
+- [x] Zero lives → GameOver, no respawn
 
 ### Stage 16 — Waves
 - [ ] Wave N clears → interstitial → wave N+1 formation with correct params

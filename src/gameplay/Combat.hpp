@@ -40,5 +40,28 @@ int resolvePlayerBullets(ProjectileManager& projectiles,
                          ScoreManager& score,
                          EffectManager& effects);
 
+// Resolves enemy threats against the player for one fixed simulation step
+// (Stage 15, docs/game_spec.md §5):
+//   - an Enemy-owned bullet whose box intersects the player box, or
+//   - a living enemy (state-aware bounds, so mid-dive bodies count) whose
+//     box intersects the player box.
+// Exactly ONE threat takes effect per step (docs/test_plan.md Stage 15:
+// two collisions in the same frame remove exactly one life): the offending
+// bullet is consumed, Player::hit() applies once, and every other threat
+// simply passes through this step.
+//
+// Ownership rules (spec §8): Player-owned bullets are NEVER checked
+// against the player, enemy bullets are NEVER checked against enemies.
+// An invulnerable, dying or gone player ignores everything — bullets fly
+// through untouched (the invulnerability window is not consumed).
+// Note: the colliding enemy body itself is NOT destroyed here; only the
+// player is affected (the frozen spec fixes the player side only).
+//
+// Must run after ProjectileManager::update(dt). SDL-free.
+// Returns 1 when a hit landed this step, 0 otherwise.
+int resolveEnemyThreats(ProjectileManager& projectiles,
+                        EnemyFormation& formation,
+                        Player& player);
+
 }  // namespace combat
 }  // namespace galaxian

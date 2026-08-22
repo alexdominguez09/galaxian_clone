@@ -64,5 +64,44 @@ int resolvePlayerBullets(ProjectileManager& projectiles,
     return kills;
 }
 
+int resolveEnemyThreats(ProjectileManager& projectiles,
+                        EnemyFormation& formation,
+                        Player& player)
+{
+    if (!player.vulnerable()) {
+        return 0;  // invulnerable blink, dying or gone: nothing can land
+    }
+    const Rect playerBox = player.bounds();
+
+    // 1) Enemy bullets (spec §5: enemy projectile collision = death).
+    int i = 0;
+    while (i < projectiles.count()) {
+        const Projectile& p = projectiles.projectile(i);
+        if (p.owner == ProjectileOwner::Enemy &&
+            intersects(p.bounds(), playerBox)) {
+            projectiles.removeAt(i);  // the bullet is consumed by the hit
+            player.hit();             // exactly one life per step
+            return 1;
+        }
+        ++i;
+    }
+
+    // 2) Enemy bodies — state-aware bounds, so a mid-dive body counts.
+    const Vector2 fp = formation.position();
+    for (int row = 0; row < EnemyFormation::kRows; ++row) {
+        for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+            const Enemy& enemy = formation.at(row, col);
+            if (!enemy.alive()) {
+                continue;
+            }
+            if (intersects(enemy.bounds(fp), playerBox)) {
+                player.hit();
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 }  // namespace combat
 }  // namespace galaxian

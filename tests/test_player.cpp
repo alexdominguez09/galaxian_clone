@@ -4,6 +4,7 @@
 // driven with explicit dt values and directions, so the math is verified
 // directly (docs/architecture.md §4).
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
@@ -145,7 +146,8 @@ TEST_CASE("player: frame-rate independence (10 s sim, clamped)", "[player]")
             static_cast<float>(kLogicalWidth) - Player::kWidth * 0.5f);
 }
 
-TEST_CASE("player: fire emits a fire event; dead player cannot fire",
+TEST_CASE("player: fire emits a fire event; a ship that cannot act cannot "
+          "fire",
           "[player]")
 {
     Player player;
@@ -155,30 +157,46 @@ TEST_CASE("player: fire emits a fire event; dead player cannot fire",
     player.fire();
     REQUIRE(player.fireCount() == 2);
 
-    player.kill();
-    player.fire();  // ignored while dead
+    // Stage 15: an Invulnerable ship can still shoot; a Dying one cannot.
+    REQUIRE(player.hit());
+    CHECK_FALSE(player.alive());
+    player.fire();  // ignored while dying
     REQUIRE(player.fireCount() == 2);
 }
 
-TEST_CASE("player: alive/dead state and respawn", "[player]")
+TEST_CASE("player: the lifecycle basics (Stage 15)", "[player]")
 {
     Player player;
     REQUIRE(player.alive());
+    REQUIRE(player.vulnerable());
+    REQUIRE(player.lives() == Player::kLives);
 
-    player.kill();
-    REQUIRE_FALSE(player.alive());
-    REQUIRE(player.state() == PlayerState::Dead);
+    // A hit costs exactly one life and starts the Dying phase.
+    REQUIRE(player.hit());
+    CHECK_FALSE(player.alive());
+    CHECK(player.state() == PlayerState::Dying);
+    CHECK(player.lives() == Player::kLives - 1);
+    CHECK(player.stateTimer() == Catch::Approx(Player::kRespawnDelaySeconds));
 
-    // A dead player does not move.
+    // A Dying ship does not move, no matter how long it waits.
     const float x = player.position().x;
-    player.update(kDt, +1.0f);
+    for (int i = 0; i < 60; ++i) {
+        player.update(kDt, +1.0f);
+    }
     REQUIRE(player.position().x == x);
 
-    // Respawn restores the start position and the Alive state.
-    player.respawn();
-    REQUIRE(player.alive());
-    REQUIRE(player.state() == PlayerState::Alive);
-    REQUIRE(player.position() == Player::kStartPosition);
+    // After the 1.5 s delay the machine waits for the respawn confirm...
+    for (int i = 0; i < 30; ++i) {
+        player.update(kDt, 0.0f);
+    }
+    CHECK(player.awaitingRespawnConfirm());
+
+    // ...which restores the start position under invulnerability.
+    player.confirmRespawn();
+    CHECK(player.state() == PlayerState::Invulnerable);
+    CHECK(player.alive());       // controllable again
+    CHECK_FALSE(player.vulnerable());  // but immune
+    CHECK(player.position() == Player::kStartPosition);
 }
 
 TEST_CASE("player: bounds is the 24x16 box centered on the position",

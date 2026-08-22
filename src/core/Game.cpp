@@ -1,5 +1,6 @@
 #include "Game.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -20,6 +21,9 @@ const char* const kEnemyTextureIds[kEnemyTypeCount] = {
     DevArt::kEnemyGuard,
     DevArt::kEnemyCommander,
 };
+
+// Stage 15: invulnerability blink period (~4 Hz on/off cycle).
+constexpr double kInvulnerableBlinkPeriodSeconds = 0.25;
 
 }  // namespace
 
@@ -272,6 +276,26 @@ void Game::fixedUpdate(double dt)
     // kills the enemy, consumes the bullet, awards the type's base points
     // through the ScoreManager, and spawns a placeholder effect.
     combat::resolvePlayerBullets(projectiles_, formation_, score_, effects_);
+
+    // Stage 15: enemy threats vs the player — bullets and diver bodies
+    // (gameplay/Combat). Exactly one life per step; a hit starts the
+    // 1.5 s Dying phase with a placeholder destruction effect.
+    if (combat::resolveEnemyThreats(projectiles_, formation_, player_) != 0) {
+        std::printf("Player destroyed (%d lives left)\n", player_.lives());
+        effects_.add(player_.bounds().position(), Player::kWidth,
+                     Player::kHeight);
+    }
+
+    // Stage 15: the respawn handoff (spec §5) — clear nearby enemy
+    // projectiles so the fresh ship never spawns into instant death, then
+    // confirm: back at start with the 2 s invulnerability window.
+    if (player_.awaitingRespawnConfirm()) {
+        const int cleared = projectiles_.removeAll(ProjectileOwner::Enemy);
+        player_.confirmRespawn();
+        std::printf("Player respawning at start (%d bullets cleared)\n",
+                    cleared);
+    }
+
     effects_.update(dt);
 
     // These counters prove the loop runs a deterministic number of steps:
@@ -314,10 +338,16 @@ void Game::render()
         renderer_.drawFilledRect(effects_.effect(i).bounds(), colors::kEffect);
     }
 
-    // Stage 5: the real Player (drawn on top of the test scene). The sprite
-    // is 24x16 and coincides with the collision box, so the box's top-left
-    // is the sprite's draw position.
-    if (player_.alive() && playerTexture_ != nullptr) {
+    // Stage 5/15: the real Player (drawn on top of the test scene). The
+    // sprite is 24x16 and coincides with the collision box. Hidden while
+    // Dying/Respawning/GameOver; blinking at ~4 Hz during the
+    // Invulnerable window.
+    const bool shipVisible =
+        player_.alive() &&
+        (player_.state() != PlayerState::Invulnerable ||
+         std::fmod(simTime_, kInvulnerableBlinkPeriodSeconds) <
+             kInvulnerableBlinkPeriodSeconds * 0.5);
+    if (shipVisible && playerTexture_ != nullptr) {
         renderer_.drawSprite(*playerTexture_, player_.bounds().position());
     }
 
@@ -345,10 +375,10 @@ void Game::render()
                       formation_.aliveCount(), projectiles_.count(),
                       AttackDirector::activeAttacks(formation_));
         renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
-        // Stage 9: the ScoreManager's value (the full HUD lands in
-        // Stage 18).
-        std::snprintf(line, sizeof(line), "SCORE: %d  KILLS: %d",
-                      score_.score(), score_.kills());
+        // Stage 9/15: the ScoreManager's value plus the lives counter (the
+        // full HUD lands in Stage 18).
+        std::snprintf(line, sizeof(line), "SCORE: %d  KILLS: %d  LIVES: %d",
+                      score_.score(), score_.kills(), player_.lives());
         renderer_.drawText(line, {16.0f, 528.0f}, colors::kGreen);
 
         // Stage 11: the enemy state labels (debug aid, docs/test_plan.md
@@ -415,10 +445,11 @@ void Game::reportStats()
                              (player_.alive() ? 1 : 0) + projectiles_.count();
         std::fprintf(stderr,
                       "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                      "sim_time=%.1fs entities=%d score=%d atk=%d\n",
+                      "sim_time=%.1fs entities=%d score=%d atk=%d lives=%d\n",
                       fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
                       simTime_, entities, score_.score(),
-                      AttackDirector::activeAttacks(formation_));
+                      AttackDirector::activeAttacks(formation_),
+                      player_.lives());
     }
 
     lastReportSeconds_ = now;

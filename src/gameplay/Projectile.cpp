@@ -116,6 +116,22 @@ bool ProjectileManager::removeAt(int index)
     return true;
 }
 
+int ProjectileManager::removeAll(ProjectileOwner owner)
+{
+    int removed = 0;
+    int i = 0;
+    while (i < count_) {
+        if (pool_[i].owner == owner) {
+            --count_;
+            pool_[i] = pool_[count_];  // swap-remove
+            ++removed;                 // re-check slot i
+        } else {
+            ++i;
+        }
+    }
+    return removed;
+}
+
 void ProjectileManager::reset()
 {
     count_ = 0;
