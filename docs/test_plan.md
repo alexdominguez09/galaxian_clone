@@ -112,13 +112,13 @@ Manual:
 - [x] Frame-rate independence of oscillation phase at fixed sim time
 
 ### Stage 11 — Enemy state machine
-- [ ] All legal transitions accepted; illegal transitions rejected
-- [ ] Dead reachable from any living state; Dead is terminal
-- [ ] Selected enemy: leaves formation → descends → turn point → returns →
+- [x] All legal transitions accepted; illegal transitions rejected
+- [x] Dead reachable from any living state; Dead is terminal
+- [x] Selected enemy: leaves formation → descends → turn point → returns →
       occupies original slot (slot offset unchanged, formation intact)
-- [ ] Formation state uncorrupted after a full dive cycle
+- [x] Formation state uncorrupted after a full dive cycle
 Manual:
-- [ ] F2/debug shows state labels (FORMATION/DIVING/RETURNING) above enemies
+- [x] F2/debug shows state labels (FORMATION/DIVING/RETURNING) above enemies
 
 ### Stage 12 — Dive trajectories
 - [ ] Bézier evaluation: P(0)=P0, P(1)=P3, symmetry checks

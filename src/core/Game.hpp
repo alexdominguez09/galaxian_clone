@@ -49,6 +49,11 @@ namespace galaxian {
 // horizontally around the anchor (spec §6.3, 64 px peak-to-peak, base
 // period 4 s, bounded speed-up as enemies die), driven by
 // EnemyFormation::update(dt) inside the fixed-timestep simulation.
+// Stage 11 gives every enemy the full spec §6.4 state machine (Formation →
+// PreparingDive → Diving → Attacking → Returning → Formation, Dead terminal)
+// with simple paths: validated transitions, state-aware bounds so combat
+// hits divers where they are, F2 state labels, and an F3 debug aid that
+// sends one enemy through a full dive cycle (real selection is Stage 13).
 class Game {
 public:
     Game() = default;

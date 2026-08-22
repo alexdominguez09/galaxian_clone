@@ -17,6 +17,9 @@ enum class Action : int {
     Pause,           // Escape (pause/back; title → quit)
     DebugCollision,  // F1 (developer only)
     DebugOverlay,    // F2 (developer only)
+    DebugDive,       // F3 (developer only): send one formation enemy into a
+                     // dive cycle so the Stage 11 state machine is visible;
+                     // Stage 13's AttackDirector owns real selection.
     Count            // sentinel: number of actions, not an action itself
 };
 
@@ -40,6 +43,8 @@ inline std::string_view actionName(Action action)
         return "DebugCollision";
     case Action::DebugOverlay:
         return "DebugOverlay";
+    case Action::DebugDive:
+        return "DebugDive";
     default:
         return "?";
     }

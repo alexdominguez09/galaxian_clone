@@ -17,6 +17,7 @@ InputManager::InputManager()
     setBinding(Action::Pause, {SDLK_ESCAPE});
     setBinding(Action::DebugCollision, {SDLK_F1});
     setBinding(Action::DebugOverlay, {SDLK_F2});
+    setBinding(Action::DebugDive, {SDLK_F3});
 }
 
 void InputManager::initialize()

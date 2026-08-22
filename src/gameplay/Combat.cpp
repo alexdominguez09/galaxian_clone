@@ -23,15 +23,21 @@ int resolvePlayerBullets(ProjectileManager& projectiles,
             const Rect bulletBox = p.bounds();
             int hitRow = -1;
             int hitCol = -1;
+            Rect hitBox;
             for (int row = 0; row < EnemyFormation::kRows && hitRow < 0;
                  ++row) {
                 for (int col = 0; col < EnemyFormation::kColumns; ++col) {
                     const Enemy& enemy = formation.at(row, col);
-                    if (enemy.alive() &&
-                        intersects(bulletBox,
-                                   enemy.bounds(formationPosition))) {
+                    if (!enemy.alive()) {
+                        continue;
+                    }
+                    // State-aware bounds: a diving enemy is tested at its
+                    // live dive position, not at its empty slot.
+                    const Rect box = enemy.bounds(formationPosition);
+                    if (intersects(bulletBox, box)) {
                         hitRow = row;
                         hitCol = col;
+                        hitBox = box;
                         break;
                     }
                 }
@@ -40,10 +46,10 @@ int resolvePlayerBullets(ProjectileManager& projectiles,
                 Enemy& enemy = formation.at(hitRow, hitCol);
                 enemy.kill();
                 score.addKill(enemy.type());
-                // Placeholder destruction effect at the enemy's box
-                // (top-left = world position + slot offset, spec §6.2).
-                effects.add(formation.positionOf(hitRow, hitCol),
-                            Enemy::kWidth, Enemy::kHeight);
+                // Placeholder destruction effect at where the enemy ACTUALLY
+                // was (captured before the kill; a diver's true position,
+                // not its empty slot).
+                effects.add(hitBox.position(), Enemy::kWidth, Enemy::kHeight);
                 // The bullet is consumed on the first hit: it can never
                 // continue on to destroy a second enemy.
                 projectiles.removeAt(i);

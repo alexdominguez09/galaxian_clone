@@ -4,6 +4,7 @@
 // pixels via SDL_RenderReadSurface, so "it rendered" is proven, not
 // assumed.
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <SDL2/SDL.h>
@@ -202,9 +203,10 @@ EnemyTextureTable resolveEnemyTextures(Renderer& renderer)
     return textures;
 }
 
-// Draws the formation exactly like Game::render() does (Stage 8): the 24x24
-// sprite coincides with the collision box, drawn at the box's top-left
-// (formation world position + slot offset).
+// Draws the formation exactly like Game::render() does (Stage 8, state-
+// aware since Stage 11): the 24x24 sprite coincides with the collision box;
+// slot members draw at formation world position + slot offset, divers at
+// their LIVE dive position (bounds() is state-aware).
 void drawFormation(Renderer& renderer, const EnemyFormation& formation,
                    const EnemyTextureTable& textures)
 {
@@ -217,7 +219,9 @@ void drawFormation(Renderer& renderer, const EnemyFormation& formation,
             const Texture* texture =
                 textures[enemy.definition().spriteIndex];
             if (texture != nullptr) {
-                renderer.drawSprite(*texture, formation.positionOf(row, col));
+                renderer.drawSprite(
+                    *texture,
+                    enemy.bounds(formation.position()).position());
             }
         }
     }
@@ -1203,6 +1207,83 @@ TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
         // Neighbors are intact.
         CHECK(isColor(pixelAt(frame, 188, 184), colors::kEnemyGreen));  // r3c3
         CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));      // r0c0
+        SDL_FreeSurface(frame);
+    }
+
+    renderer.shutdown();
+}
+
+// Stage 11 end-to-end (docs/test_plan.md, Stage 11): a diving enemy draws
+// at its LIVE dive position away from its empty slot, and the F2 debug
+// state label renders above it. Pixel-verified headlessly, mirroring
+// Game::render() (state-aware drawFormation + state labels).
+TEST_CASE("enemy state machine: a diver renders away from its slot "
+          "with its state label",
+          "[enemy][statemachine][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    REQUIRE(DevArt::createAll(renderer));
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+
+    EnemyFormation formation;  // static anchor in this test
+    Enemy& scout = formation.at(4, 0);  // Scout green, slot box (32, 208)
+    REQUIRE(scout.beginDive());
+
+    // 80 updates = 30 preparing + 50 diving steps of 140 px/s:
+    // scratch value top = 324.666870, so the box spans ~[324.7, 348.7].
+    const double dt = 1.0 / 60.0;
+    for (int i = 0; i < 80; ++i) {
+        scout.update(dt, formation.position());
+    }
+    REQUIRE(scout.state() == EnemyState::Diving);
+    const Vector2 pos = scout.screenPosition(formation.position());
+    CHECK(pos.y == Catch::Approx(324.666870).margin(1e-3));
+    const int boxTop = static_cast<int>(pos.y);          // 324
+    const int centerX = static_cast<int>(pos.x) + 12;    // 44
+
+    scene.draw(renderer);
+    drawFormation(renderer, formation, enemyTextures);
+    renderer.present();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // The diver is drawn at its live position (interior pixels green).
+        CHECK(isColor(pixelAt(frame, centerX, boxTop + 12),
+                      colors::kEnemyGreen));
+        CHECK(isColor(pixelAt(frame, centerX - 5, boxTop + 18),
+                      colors::kEnemyGreen));
+        // Its old slot is plain background now.
+        CHECK(isColor(pixelAt(frame, 44, 220), colors::kBlack));
+        SDL_FreeSurface(frame);
+    }
+
+    // Mirror Game's F2 state-label rendering above each living enemy.
+    scene.draw(renderer);
+    drawFormation(renderer, formation, enemyTextures);
+    renderer.drawText(std::string(enemyStateName(scout.state())),
+                      {pos.x, pos.y - 18.0f}, colors::kGreen, 16);
+    renderer.present();
+    if (!fontAvailable()) {
+        SKIP("no TTF font available on this system");
+    } else {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // The DIVING label lit up the strip between the slot row above and
+        // the diver's new position.
+        int lit = 0;
+        for (int y = boxTop - 17; y <= boxTop - 2; ++y) {
+            for (int x = static_cast<int>(pos.x);
+                 x < static_cast<int>(pos.x) + 40; ++x) {
+                if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                    ++lit;
+                }
+            }
+        }
+        CHECK(lit > 10);  // glyphs actually drew something
         SDL_FreeSurface(frame);
     }
 

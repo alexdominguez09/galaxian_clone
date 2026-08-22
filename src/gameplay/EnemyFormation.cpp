@@ -51,6 +51,14 @@ void EnemyFormation::update(double dt)
     position_.x =
         static_cast<float>(static_cast<double>(kAnchor.x) +
                            kOscillationHalfSwing * std::sin(phase_));
+
+    // Stage 11: advance every enemy's own state machine (prepare timers,
+    // dive motion). Slot members do not self-move; divers home towards the
+    // LIVE anchor position computed just above, so a swaying formation is
+    // tracked and the rejoin lands exactly on the slot.
+    for (Enemy& enemy : enemies_) {
+        enemy.update(dt, position_);
+    }
 }
 
 int EnemyFormation::aliveCount() const

@@ -26,12 +26,12 @@ void DevScene::draw(Renderer& renderer) const
 
     // Text. (The enemy sprites are the real gameplay formation, drawn by
     // Game since Stage 8; the Stage 4 action table was removed in Stage 8.)
-    renderer.drawText("GALAXIAN CLONE - STAGE 10 FORMATION MOTION", {16.0f, 16.0f},
+    renderer.drawText("GALAXIAN CLONE - STAGE 11 STATE MACHINE", {16.0f, 16.0f},
                       colors::kWhite);
     renderer.drawText("PLAYER=TRIANGLE  ENEMIES=SQUARES", {16.0f, 40.0f},
                       colors::kWhite);
     renderer.drawText(
-        "LEFT/RIGHT=MOVE  SPACE=FIRE  F1=BOXES  F2=STATS  ESC=QUIT",
+        "LEFT/RIGHT=MOVE  SPACE=FIRE  F1=BOXES  F2=STATS+LABELS  F3=DIVE  ESC=QUIT",
         {16.0f, 552.0f}, colors::kWhite);
 }
 

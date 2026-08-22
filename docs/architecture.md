@@ -249,6 +249,37 @@ and before combat resolution):
   hitting exactly the spec bound of 2.5× base speed when everything is
   dead; dead enemies do not move but still count towards the multiplier.
 
+Stage 11 gives every enemy the full spec §6.4 state machine
+(`EnemyState {Formation, PreparingDive, Diving, Attacking, Returning,
+Dead}`):
+
+- **Validated transitions** (`Enemy::transitionTo`, table-driven via
+  `isLegalTransition`): exactly the five chain edges
+  `Formation → PreparingDive → Diving → Attacking → Returning → Formation`
+  plus "any living state → Dead". Dead is terminal; skips and
+  self-transitions are rejected (the transition leaves the state unchanged).
+- **State-aware bounds**: `Enemy::bounds(formationPosition)` reports the
+  slot lattice box for Formation/PreparingDive/Dead members and the LIVE
+  dive position for Diving/Attacking/Returning ones. Combat therefore hits
+  divers where they actually are, `Game` draws them away from their empty
+  slots, and the F1 overlay tracks them.
+- **Simple paths** (the plan's "prove the machine first"; Stage 12 replaces
+  the motion, not the machine): PreparingDive holds its slot for 0.5 s;
+  Diving descends straight down at `definition().speed` (that is what the
+  §6.1 speed column is for) until the box bottom reaches y = 480; Attacking
+  dashes horizontally towards the nearer screen edge until fully
+  off-screen; Returning homes to the LIVE slot position each step (so a
+  swaying formation is tracked) and snaps bit-exact onto it when within one
+  step's travel.
+- **Ownership of motion**: `EnemyFormation::update(dt)` advances both the
+  oscillation and every enemy's own machine against the freshly computed
+  anchor position.
+- **Debug aid** (`Action::DebugDive`, F3): sends the first idle formation
+  enemy through a full dive cycle so the machine is observable on screen;
+  F2 shows the state label (FORMATION/PREPARING/DIVING/ATTACKING/
+  RETURNING) above every living enemy. Real selection authority is
+  Stage 13's AttackDirector.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position

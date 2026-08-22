@@ -1,6 +1,7 @@
 #include "Game.hpp"
 
 #include <cstdio>
+#include <string>
 #include <vector>
 
 #include "gameplay/Combat.hpp"
@@ -137,6 +138,24 @@ void Game::processEvents()
         // itself is isolated in graphics/DebugOverlay, architecture §3.5).
         collisionDebug_ = !collisionDebug_;
     }
+    if (input_.wasPressed(Action::DebugDive)) {
+        // Stage 11 debug aid (docs/test_plan.md Stage 11): send the first
+        // idle formation enemy into a full dive cycle so the state machine
+        // is observable on screen (with F2's state labels). Stage 13's
+        // AttackDirector owns real selection; this stays a developer aid.
+        bool launched = false;
+        for (int row = 0; row < EnemyFormation::kRows && !launched; ++row) {
+            for (int col = 0; col < EnemyFormation::kColumns && !launched;
+                 ++col) {
+                Enemy& enemy = formation_.at(row, col);
+                if (enemy.state() == EnemyState::Formation &&
+                    enemy.beginDive()) {
+                    std::printf("Enemy (%d,%d) beginning dive\n", row, col);
+                    launched = true;
+                }
+            }
+        }
+    }
     if (input_.wasPressed(Action::Pause)) {
         // Escape. The Stage 17 state machine turns this into pause/resume;
         // until then the single dev scene acts as the title, so Escape quits
@@ -213,9 +232,12 @@ void Game::render()
     // Stage 8; see DevScene.)
     devScene_.draw(renderer_);
 
-    // Stage 8: the static enemy formation (40 enemies, spec §6.2). The 24x24
-    // enemy sprite coincides with the collision box, so the box's top-left
-    // (formation world position + slot offset) is the draw position.
+    // Stage 8 (state-aware since Stage 11): the enemy formation. The 24x24
+    // enemy sprite coincides with the collision box; slot members draw at
+    // formation world position + slot offset, divers at their LIVE dive
+    // position (bounds() is state-aware), so a diver visibly leaves its
+    // empty slot.
+    const Vector2 formationPosition = formation_.position();
     for (int row = 0; row < EnemyFormation::kRows; ++row) {
         for (int col = 0; col < EnemyFormation::kColumns; ++col) {
             const Enemy& enemy = formation_.at(row, col);
@@ -225,7 +247,7 @@ void Game::render()
             const int sprite = enemy.definition().spriteIndex;
             if (enemyTextures_[sprite] != nullptr) {
                 renderer_.drawSprite(*enemyTextures_[sprite],
-                                     formation_.positionOf(row, col));
+                                     enemy.bounds(formationPosition).position());
             }
         }
     }
@@ -271,19 +293,37 @@ void Game::render()
         std::snprintf(line, sizeof(line), "SCORE: %d  KILLS: %d",
                       score_.score(), score_.kills());
         renderer_.drawText(line, {16.0f, 528.0f}, colors::kGreen);
+
+        // Stage 11: the enemy state labels (debug aid, docs/test_plan.md
+        // Stage 11): FORMATION / PREPARING / DIVING / ATTACKING / RETURNING
+        // above every living enemy.
+        for (int row = 0; row < EnemyFormation::kRows; ++row) {
+            for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+                const Enemy& enemy = formation_.at(row, col);
+                if (!enemy.alive()) {
+                    continue;
+                }
+                const Rect box = enemy.bounds(formationPosition);
+                const Vector2 labelPos{box.x, box.y - 18.0f};
+                renderer_.drawText(std::string(enemyStateName(enemy.state())),
+                                   labelPos, colors::kGreen, 16);
+            }
+        }
     }
 
-    // Stage 7 (extended in Stage 8): F1 collision-box debug overlay. Game
-    // collects the live boxes (formation + player + projectiles) and hands
-    // them to the isolated graphics module; the AABB rule itself is
+    // Stage 7 (extended in Stage 8, state-aware since Stage 11): F1
+    // collision-box debug overlay. Game collects the live boxes (formation
+    // at their true positions + player + projectiles) and hands them to the
+    // isolated graphics module; the AABB rule itself is
     // gameplay/Collision.hpp, not here.
     if (collisionDebug_) {
         std::vector<Rect> boxes;
         boxes.reserve(formation_.aliveCount() + 1 + projectiles_.count());
         for (int row = 0; row < EnemyFormation::kRows; ++row) {
             for (int col = 0; col < EnemyFormation::kColumns; ++col) {
-                if (formation_.at(row, col).alive()) {
-                    boxes.push_back(formation_.boundsOf(row, col));
+                const Enemy& enemy = formation_.at(row, col);
+                if (enemy.alive()) {
+                    boxes.push_back(enemy.bounds(formationPosition));
                 }
             }
         }
