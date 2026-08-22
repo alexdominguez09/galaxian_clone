@@ -5,17 +5,14 @@
 
 namespace galaxian {
 
-// Test scene (docs/test_plan.md §1, Stage 3):
+// The playfield backdrop (docs/test_plan.md §1, Stage 3): the screen
+// border, the black background and the controls help line.
 //
-//   enemy sprites, text, projectile rectangles, screen border
-//
-// Stage 4 added an input demo (a stand-in player) and an on-screen action
-// table; Stage 5 replaced the stand-in with the real gameplay Player
-// (owned and drawn by Game). Stage 8 removes the rest: the 10 dummy enemies
-// are replaced by the real gameplay formation (gameplay/EnemyFormation,
-// owned and drawn by Game) and the action table is gone because its area
-// (y 140-280) overlaps the formation (y 64-232). What remains is the
-// static test content: text, three projectile rectangles, and the border.
+// History: this scene carried progressively more scaffolding — a demo
+// player (Stage 4), dummy enemies + an action table (Stage 3/4) — all of
+// which were replaced by real gameplay objects in Stages 5-8. The static
+// test bullets and the per-stage title line went away in Stage 18 when
+// the top bar became the real HUD (graphics/Hud).
 class DevScene {
 public:
     // Loads dev art into the renderer. Returns false on failure.

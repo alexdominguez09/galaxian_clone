@@ -164,11 +164,11 @@ Manual:
 - [x] Quit from any state exits cleanly
 
 ### Stage 18 — HUD
-- [ ] Score display equals ScoreManager value after each event
-- [ ] Lives display matches lives (3 → 2 → 1 → 0)
-- [ ] Wave display matches current wave
-- [ ] High score updates within session when surpassed
-- [ ] Score popups/flash do not affect score value
+- [x] Score display equals ScoreManager value after each event
+- [x] Lives display matches lives (3 → 2 → 1 → 0)
+- [x] Wave display matches current wave
+- [x] High score updates within session when surpassed
+- [x] Score popups/flash do not affect score value
 
 ### Stage 19 — Animation
 - [ ] Clip advances at correct rate (frames advanced = sim time × fps)

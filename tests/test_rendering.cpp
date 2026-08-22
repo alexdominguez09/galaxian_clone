@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "core/Game.hpp"
 #include "core/Types.hpp"
 #include "gameplay/Combat.hpp"
 #include "gameplay/Effects.hpp"
@@ -26,6 +27,8 @@
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
+#include "graphics/Hud.hpp"
+#include "states/GameState.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/DevScene.hpp"
@@ -505,7 +508,7 @@ TEST_CASE("renderer: 2x integer scaling is pixel-perfect", "[rendering]")
     renderer.shutdown();
 }
 
-TEST_CASE("dev scene: renders all elements", "[rendering]")
+TEST_CASE("dev scene: renders the pure backdrop", "[rendering]")
 {
     useDummyVideoDriver();
     Renderer renderer;
@@ -522,23 +525,140 @@ TEST_CASE("dev scene: renders all elements", "[rendering]")
     CHECK(isColor(pixelAt(frame, 0, 0), colors::kBorder));
     CHECK(isColor(pixelAt(frame, 447, 0), colors::kBorder));
     CHECK(isColor(pixelAt(frame, 0, 575), colors::kBorder));
-    // Interior background (a point away from all sprites/text/bullets).
-    CHECK(isColor(pixelAt(frame, 224, 350), colors::kBlack));
-    // Bullet rectangle at (100, 400), 4x10.
-    CHECK(isColor(pixelAt(frame, 101, 405), colors::kBullet));
-    // Stage 5: the player is no longer part of the dev scene (it is the real
-    // gameplay Player, owned and drawn by Game). The spot where the Stage 4
-    // demo player used to be is now plain background.
-    CHECK(isColor(pixelAt(frame, 212 + 12, 520 + 15), colors::kBlack));
-    // Stage 8: the 10 dummy enemies are gone (the real gameplay formation
-    // is owned and drawn by Game — see the formation pixel test below). The
-    // center of the first old dummy enemy is plain background again...
-    CHECK(isColor(pixelAt(frame, 80 + 12, 60 + 12), colors::kBlack));
-    // ...and so is the Stage 4 action table area (removed in Stage 8, it
-    // overlapped the formation area).
-    CHECK(isColor(pixelAt(frame, 20, 250), colors::kBlack));
+    // Interior background (away from the help line).
+    CHECK(isColor(pixelAt(frame, 224, 300), colors::kBlack));
+    CHECK(isColor(pixelAt(frame, 224, 450), colors::kBlack));
+    // Stage 18: the scaffolding is gone -- no static bullet rectangles,
+    // no title line, and the top bar area belongs to the real HUD now
+    // (plain black on a bare backdrop).
+    CHECK_FALSE(isColor(pixelAt(frame, 101, 405), colors::kBullet));
+    int titleLit = 0;
+    for (int y = 8; y < 24; ++y) {
+        for (int x = 16; x < 120; ++x) {
+            if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                ++titleLit;
+            }
+        }
+    }
+    CHECK(titleLit == 0);
+    // The controls help line still renders at the bottom.
+    int helpLit = 0;
+    for (int y = 552; y < 570; ++y) {
+        for (int x = 16; x < 400; ++x) {
+            if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                ++helpLit;
+            }
+        }
+    }
+    CHECK(helpLit > 50);
     SDL_FreeSurface(frame);
     renderer.shutdown();
+}
+
+// Stage 18 (docs/test_plan.md, Stage 18): the HUD module draws the spec
+// §11 layout from plain values -- zero-padded six-digit score/high, the
+// wave line, and life pips clamped to the possible ship count.
+TEST_CASE("hud: draws the top bar and life pips from values",
+          "[hud][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+
+    auto litCount = [&renderer](int x0, int y0, int x1, int y1) {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        int lit = 0;
+        for (int y = y0; y < y1; ++y) {
+            for (int x = x0; x < x1; ++x) {
+                if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                    ++lit;
+                }
+            }
+        }
+        SDL_FreeSurface(frame);
+        return lit;
+    };
+    auto draw = [&](int score, int high, int wave, int lives) {
+        renderer.clear(colors::kBlack);
+        hud::drawTopBar(renderer, {score, high, wave});
+        hud::drawLivesPips(renderer, lives);
+        renderer.present();
+    };
+
+    // Full HUD: labels, values, wave line, two life pips.
+    draw(12350, 42000, 7, 2);
+    CHECK(litCount(16, 8, 60, 24) > 10);    // SCORE label
+    CHECK(litCount(16, 24, 100, 40) > 20);  // zero-padded score digits
+    CHECK(litCount(352, 8, 396, 24) > 10);  // HIGH label
+    CHECK(litCount(352, 24, 430, 40) > 20); // high digits
+    CHECK(litCount(16, 44, 90, 60) > 10);   // WAVE line
+    // Exactly two pip clusters: slots 0 and 1 lit, slot 2 empty.
+    CHECK(litCount(16, 538, 26, 546) > 6);
+    CHECK(litCount(30, 538, 40, 546) > 6);
+    CHECK(litCount(44, 538, 54, 546) == 0);
+
+    // The display tracks the values: a different score changes the digit
+    // pattern in the value region (and only there).
+    draw(12350, 42000, 7, 2);
+    const int before = litCount(16, 24, 100, 40);
+    draw(42000, 42000, 7, 2);
+    const int after = litCount(16, 24, 100, 40);
+    CHECK(before != after);
+
+    // Zero lives: no pips anywhere. Lives beyond kLives: clamped to three
+    // (a display can never show more ships than exist).
+    draw(1, 1, 1, 0);
+    CHECK(litCount(16, 538, 56, 546) == 0);
+    draw(1, 1, 1, 9);
+    CHECK(litCount(16, 538, 26, 546) > 6);
+    CHECK(litCount(30, 538, 40, 546) > 6);
+    CHECK(litCount(44, 538, 54, 546) > 6);   // third ship shown...
+    CHECK(litCount(58, 538, 68, 546) == 0);  // ...never a fourth
+
+    renderer.shutdown();
+}
+
+// Stage 18 end-to-end: during PLAYING the real top bar is on screen with
+// live values; on TITLE it is not (the title shows its own text).
+TEST_CASE("hud: the playfield carries the top bar; the title does not",
+          "[hud][game][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Game game;
+    REQUIRE(game.initialize());
+
+    auto pump = [&game](double seconds) {
+        game.setSmokeSeconds(seconds);
+        game.run();
+        game.setSmokeSeconds(0.0);
+    };
+    auto scoreLabelLit = [&game]() {
+        SDL_Surface* frame = readback(game.renderer().sdlRenderer());
+        REQUIRE(frame != nullptr);
+        int lit = 0;
+        for (int y = 8; y < 24; ++y) {
+            for (int x = 16; x < 60; ++x) {
+                if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                    ++lit;
+                }
+            }
+        }
+        SDL_FreeSurface(frame);
+        return lit;
+    };
+
+    // TITLE: no SCORE label up top (the title screen owns this space).
+    pump(0.05);
+    CHECK(game.state() == GameStateId::Title);
+    CHECK(scoreLabelLit() == 0);
+
+    // PLAYING: the HUD top bar appears immediately.
+    REQUIRE(game.changeState(GameStateId::Playing));
+    pump(0.05);
+    CHECK(scoreLabelLit() > 10);
+
+    game.shutdown();
 }
 
 // Stage 8 (docs/test_plan.md, Stage 8): the real gameplay formation renders

@@ -101,3 +101,43 @@ TEST_CASE("score: reset returns a fresh game", "[score]")
     CHECK(score.score() == 80);
     CHECK(score.kills() == 1);
 }
+
+TEST_CASE("score: the session high score tracks the peak", "[score]")
+{
+    ScoreManager score;
+    CHECK(score.highScore() == 0);
+
+    score.addKill(EnemyType::Commander);            // 150
+    CHECK(score.highScore() == 150);
+    score.addKill(EnemyType::Scout);                // 200
+    CHECK(score.highScore() == 200);
+
+    // Raw points track the peak too...
+    CHECK(score.addPoints(1000) == 1000);
+    CHECK(score.highScore() == 1200);
+
+    // ...and a fresh game starts back at zero WITHOUT losing the session
+    // best (spec §11: the high score belongs to the session, not the run).
+    score.reset();
+    CHECK(score.score() == 0);
+    CHECK(score.highScore() == 1200);
+
+    // A weaker run never lowers it.
+    score.addKill(EnemyType::Guard);
+    CHECK(score.highScore() == 1200);
+
+    // Surpassing it takes over again.
+    for (int i = 0; i < 25; ++i) {
+        score.addKill(EnemyType::Guard);            // 80 * 25 = 2000
+    }
+    CHECK(score.score() == 2000 + 80);
+    CHECK(score.highScore() == 2080);
+
+    // Only an explicit reset clears the session best (the running score is
+    // untouched); the very next scoring event re-seeds it.
+    score.resetHighScore();
+    CHECK(score.highScore() == 0);
+    CHECK(score.score() == 2080);
+    score.addKill(EnemyType::Scout);
+    CHECK(score.highScore() == 2130);
+}

@@ -114,6 +114,8 @@ public:
     const ScoreManager& score() const { return score_; }
     const WaveManager& waves() const { return waves_; }
     const Player& player() const { return player_; }
+    // Test seam: framebuffer readback in headless rendering tests.
+    Renderer& renderer() { return renderer_; }
 
     bool inSmokeMode() const { return smokeFrames_ > 0 || smokeSeconds_ > 0.0; }
     int smokeResultFrames() const { return frameCount_; }

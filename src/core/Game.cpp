@@ -8,6 +8,7 @@
 #include "gameplay/Combat.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
+#include "graphics/Hud.hpp"
 #include "states/GameState.hpp"
 
 namespace galaxian {
@@ -417,8 +418,10 @@ void Game::renderTitle()
     devScene_.draw(renderer_);
     renderer_.drawText("GALAXIAN CLONE", {118.0f, 176.0f}, colors::kWhite,
                        24);
-    renderer_.drawText("HIGH SCORE 000000", {150.0f, 236.0f},
-                       colors::kGreen);
+    char hudLine[32];
+    std::snprintf(hudLine, sizeof(hudLine), "HIGH SCORE %06d",
+                  score_.highScore());
+    renderer_.drawText(hudLine, {138.0f, 236.0f}, colors::kGreen);
     renderer_.drawText("PRESS ENTER TO START", {122.0f, 320.0f},
                        colors::kWhite, 24);
     renderer_.drawText("ESC QUITS", {192.0f, 380.0f}, colors::kBorder);
@@ -445,16 +448,16 @@ void Game::renderPlayfield(bool paused)
     // Stage 8; see DevScene.)
     devScene_.draw(renderer_);
 
-    // Stage 16 HUD bits (the full HUD lands in Stage 18): the wave
-    // counter top-right, and a center notice during the interstitial.
-    {
-        char hudLine[32];
-        std::snprintf(hudLine, sizeof(hudLine), "WAVE %d", waves_.wave());
-        renderer_.drawText(hudLine, {368.0f, 16.0f}, colors::kWhite);
-        if (waves_.interstitial()) {
-            renderer_.drawText("WAVE CLEAR", {168.0f, 272.0f},
-                               colors::kGreen);
-        }
+    // Stage 18: the arcade HUD (graphics/Hud) — top bar with SCORE / HIGH
+    // / WAVE and the life pips bottom-left. Drawn from live values every
+    // frame, so it can never lag the simulation. The interstitial keeps
+    // its center notice.
+    hud::drawTopBar(renderer_, {score_.score(), score_.highScore(),
+                                waves_.wave()});
+    hud::drawLivesPips(renderer_, player_.lives());
+    if (waves_.interstitial()) {
+        renderer_.drawText("WAVE CLEAR", {168.0f, 272.0f},
+                           colors::kGreen);
     }
 
     // Stage 8 (state-aware since Stage 11): the enemy formation. The 24x24

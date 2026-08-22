@@ -33,12 +33,20 @@ public:
     // Total enemies destroyed (diagnostics/tests).
     int kills() const { return kills_; }
 
+    // The session high score (spec §11): automatically tracks the peak
+    // score and INTENTIONALLY survives reset() — a new game starts at 0
+    // while the session best stays on the HUD. Persistence to disk is
+    // Stage 22; resetHighScore() exists for fresh sessions/tests.
+    int highScore() const { return highScore_; }
+    void resetHighScore() { highScore_ = 0; }
+
     // Back to a fresh game (Stage 17 state transitions, tests).
     void reset();
 
 private:
     int score_ = 0;
     int kills_ = 0;
+    int highScore_ = 0;
 };
 
 }  // namespace galaxian

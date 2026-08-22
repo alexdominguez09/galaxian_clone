@@ -481,6 +481,27 @@ spec §9):
   the F2/console stats lines carry `wave=`, and the interstitial shows a
   center notice.
 
+Stage 18 replaces those bits with the real HUD (`graphics/Hud.{hpp,cpp}`,
+spec §11):
+
+- **Isolated rendering module** (DebugOverlay style): `hud::drawTopBar` /
+  `hud::drawLivesPips` take plain VALUES and draw them — no game logic, no
+  score rules. `Game::renderPlayfield` feeds it live values every frame,
+  so the display can never lag the simulation.
+- **Layout** (spec §11): top bar SCORE / HIGH labels with zero-padded
+  six-digit values (`%06d`), WAVE line under the left column, and life
+  pips bottom-left — small font-free cyan triangles clamped to
+  `[0, kLives]` (a display can never show more ships than exist). The
+  interstitial keeps its center notice; the title screen shows the live
+  session high.
+- **Session high score**: ScoreManager tracks the peak automatically on
+  every scoring event (`highScore()`); `reset()` intentionally KEEPS it —
+  a new game starts at 0 while the session best stays up — and only
+  `resetHighScore()` clears it. Disk persistence is Stage 22.
+- **Scaffolding retired**: DevScene slimmed to the pure backdrop (border +
+  help line); the static test bullets and per-stage title line are gone —
+  their space is the HUD's now.
+
 ### 3.9 Game states (Stage 17)
 
 ```cpp

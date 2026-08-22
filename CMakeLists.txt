@@ -40,6 +40,7 @@ add_library(galaxian_core STATIC
     src/graphics/DebugOverlay.cpp
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp
+    src/graphics/Hud.cpp
     src/input/InputManager.cpp
     src/states/GameState.cpp
     src/states/StateMachine.cpp
