@@ -106,10 +106,10 @@ Manual:
 - [x] Entire stationary formation destroyable reliably
 
 ### Stage 10 — Formation movement
-- [ ] Formation oscillates within screen bounds
-- [ ] Enemy spacing invariant while moving
-- [ ] Killed enemies stay absent; formation state valid after deaths
-- [ ] Frame-rate independence of oscillation phase at fixed sim time
+- [x] Formation oscillates within screen bounds
+- [x] Enemy spacing invariant while moving
+- [x] Killed enemies stay absent; formation state valid after deaths
+- [x] Frame-rate independence of oscillation phase at fixed sim time
 
 ### Stage 11 — Enemy state machine
 - [ ] All legal transitions accepted; illegal transitions rejected

@@ -45,6 +45,10 @@ namespace galaxian {
 // hit kills the enemy, consumes the bullet, awards the type's base points
 // through the ScoreManager (the central scoring subsystem, SDL-free), and
 // spawns a placeholder destruction effect (EffectManager) drawn here.
+// Stage 10 sets the formation in motion: the world position sways
+// horizontally around the anchor (spec §6.3, 64 px peak-to-peak, base
+// period 4 s, bounded speed-up as enemies die), driven by
+// EnemyFormation::update(dt) inside the fixed-timestep simulation.
 class Game {
 public:
     Game() = default;

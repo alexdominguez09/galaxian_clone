@@ -1,16 +1,56 @@
 #include "gameplay/EnemyFormation.hpp"
 
+#include <numbers>
+
 namespace galaxian {
 
 void EnemyFormation::reset()
 {
     position_ = kAnchor;
+    phase_ = 0.0;
     for (int row = 0; row < kRows; ++row) {
         for (int col = 0; col < kColumns; ++col) {
             enemies_[row * kColumns + col] =
                 Enemy(typeForRow(row), slotOffset(row, col));
         }
     }
+}
+
+double EnemyFormation::speedMultiplier() const
+{
+    // Spec §6.3 pressure mechanic: the oscillation speeds up linearly as
+    // enemies die, hitting exactly kMaxSpeedMultiplier (2.5x) when the
+    // formation is empty.
+    return 1.0 + (kMaxSpeedMultiplier - 1.0) *
+                     (1.0 - static_cast<double>(aliveCount()) /
+                                static_cast<double>(kTotal));
+}
+
+void EnemyFormation::update(double dt)
+{
+    if (dt <= 0.0) {
+        return;
+    }
+
+    // Phase accumulation on the fixed step (docs/architecture.md §3.1):
+    // frame-rate independent by construction, deterministic for identical
+    // step sequences. The phase wraps modulo 2π so it cannot grow without
+    // bound over long sessions; increments are always far below one turn,
+    // so a single floor-based wrap is exact.
+    constexpr double kTwoPi = 2.0 * std::numbers::pi;
+    phase_ += (kTwoPi / kOscillationPeriodSeconds) * speedMultiplier() * dt;
+    if (phase_ >= kTwoPi) {
+        phase_ -= kTwoPi * std::floor(phase_ / kTwoPi);
+    }
+    if (phase_ >= kTwoPi) {  // defensive: float rounding at the boundary
+        phase_ = 0.0;
+    }
+
+    // Sinusoidal sway around the anchor (spec §6.3). x is recomputed from
+    // the phase every step (not incremented), y never changes.
+    position_.x =
+        static_cast<float>(static_cast<double>(kAnchor.x) +
+                           kOscillationHalfSwing * std::sin(phase_));
 }
 
 int EnemyFormation::aliveCount() const

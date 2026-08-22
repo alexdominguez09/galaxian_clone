@@ -187,8 +187,14 @@ void Game::fixedUpdate(double dt)
     }
     projectiles_.update(dt);
 
+    // Stage 10: the formation oscillates horizontally (spec §6.3, 64 px
+    // peak-to-peak around the anchor, base period 4 s, speeding up as
+    // enemies die up to the 2.5x bound) — gameplay/EnemyFormation, SDL-free,
+    // phase accumulation on the fixed step.
+    formation_.update(dt);
+
     // Stage 9: player bullets vs the formation (gameplay/Combat, SDL-free,
-    // runs after the move so it sees each bullet's new position): a hit
+    // runs after both move so it sees their new positions): a hit
     // kills the enemy, consumes the bullet, awards the type's base points
     // through the ScoreManager, and spawns a placeholder effect.
     combat::resolvePlayerBullets(projectiles_, formation_, score_, effects_);

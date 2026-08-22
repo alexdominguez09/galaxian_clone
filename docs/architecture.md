@@ -230,6 +230,25 @@ Stage 8 implements the static formation (`gameplay/Enemy.{hpp,cpp}`,
 - **Minimal state**: `EnemyState` is the `Formation`/`Dead` pair in Stage 8
   (mirroring the Stage 5 Player); Stage 11 expands it to the full machine.
 
+Stage 10 sets the formation in motion (`EnemyFormation::update(dt)`, called
+by `Game` inside the fixed-timestep simulation after the projectiles move
+and before combat resolution):
+
+- **Oscillation** (spec §6.3): the world position sways sinusoidally around
+  the anchor, `x = kAnchor.x + 32·sin(phase)` — the spec's "amplitude 64 px"
+  read as a 64 px peak-to-peak swing (±32), the only interpretation that
+  keeps the whole 360 px-wide grid inside the 448 px screen at all times.
+  Base period 4 s. Vertical variation (optional in the plan) is not
+  implemented: y never changes.
+- **Phase accumulation** on the fixed step (§3.1): frame-rate independent by
+  construction and deterministic for identical step sequences; the phase
+  wraps modulo 2π so long sessions cannot grow it without bound. x is
+  recomputed from the phase every step (never incremented).
+- **Pressure speed-up** (spec §6.3):
+  `multiplier = 1 + 1.5 · (1 − alive/40) ∈ [1.0, 2.5]` — linear in deaths,
+  hitting exactly the spec bound of 2.5× base speed when everything is
+  dead; dead enemies do not move but still count towards the multiplier.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position

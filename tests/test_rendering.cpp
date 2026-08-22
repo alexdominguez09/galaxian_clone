@@ -984,6 +984,73 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
     renderer.shutdown();
 }
 
+// Stage 10 end-to-end (docs/test_plan.md, Stage 10): the formation sways
+// horizontally around the anchor — after one simulated second it sits at
+// its rightmost offset (+32 px), after three at its leftmost (-32 px) —
+// with every enemy keeping its slot spacing and dead enemies staying gone.
+// Pixel-verified headlessly, mirroring Game::run()/fixedUpdate().
+TEST_CASE("enemy formation: oscillates smoothly (pixels)",
+          "[enemy][formation][motion][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    REQUIRE(DevArt::createAll(renderer));
+    const EnemyTextureTable enemyTextures = resolveEnemyTextures(renderer);
+    DevScene scene;
+    REQUIRE(scene.initialize(renderer));
+
+    EnemyFormation formation;
+    const double dt = 1.0 / 60.0;
+
+    // Mirrors Game::fixedUpdate() for a no-input frame: only the formation
+    // moves in this test.
+    auto stepFrame = [&]() { formation.update(dt); };
+    auto drawFrame = [&]() {
+        scene.draw(renderer);
+        drawFormation(renderer, formation, enemyTextures);
+        renderer.present();
+    };
+
+    // Column centers are x = anchor.x + 48c + 12; row centers are y =
+    // 64 + 36r + 12. Row 0 is Commander red, rows 3-4 Scout green.
+
+    // t = 1 s (60 steps): x offset is exactly +32 px.
+    for (int i = 0; i < 60; ++i) {
+        stepFrame();
+    }
+    CHECK(formation.position().x == 64.0f);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        // Col 0 moved from center x=44 to x=76; col 7 from 380 to 412.
+        CHECK(isColor(pixelAt(frame, 76, 76), colors::kEnemyRed));   // r0c0
+        CHECK(isColor(pixelAt(frame, 412, 76), colors::kEnemyRed));  // r0c7
+        CHECK(isColor(pixelAt(frame, 76, 220), colors::kEnemyGreen)); // r4c0
+        // The old spots are background now.
+        CHECK_FALSE(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        SDL_FreeSurface(frame);
+    }
+
+    // t = 3 s (180 steps total): x offset is exactly -32 px.
+    for (int i = 0; i < 120; ++i) {
+        stepFrame();
+    }
+    CHECK(formation.position().x == 0.0f);
+    drawFrame();
+    {
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        CHECK(isColor(pixelAt(frame, 12, 76), colors::kEnemyRed));   // r0c0
+        CHECK(isColor(pixelAt(frame, 348, 76), colors::kEnemyRed));  // r0c7
+        CHECK(isColor(pixelAt(frame, 12, 220), colors::kEnemyGreen)); // r4c0
+        SDL_FreeSurface(frame);
+    }
+
+    renderer.shutdown();
+}
+
 // Stage 9 end-to-end (docs/test_plan.md, Stage 9): a player bullet that
 // reaches the formation destroys the enemy it overlaps — the enemy's pixels
 // become the white placeholder effect, the bullet is consumed, the
