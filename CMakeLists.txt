@@ -27,17 +27,22 @@ find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(SDL2_image REQUIRED)
 
-# Core library: timing + shared types + rendering. Kept separate so unit
-# tests can link the logic without the full application.
+# Core library: timing + shared types + rendering + states. Kept separate
+# so unit tests can link the logic without the full application.
 add_library(galaxian_core STATIC
     src/core/GameClock.cpp
     src/core/TimestepController.cpp
+    src/core/Game.cpp
+    src/states/GameState.cpp
+    src/states/StateMachine.cpp
     src/graphics/Texture.cpp
     src/graphics/Renderer.cpp
     src/graphics/DebugOverlay.cpp
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp
     src/input/InputManager.cpp
+    src/states/GameState.cpp
+    src/states/StateMachine.cpp
     src/gameplay/AttackDirector.cpp
     src/gameplay/Combat.cpp
     src/gameplay/DivePath.cpp
@@ -58,7 +63,6 @@ target_link_libraries(galaxian_core PUBLIC
 
 add_executable(galaxian
     src/main.cpp
-    src/core/Game.cpp
 )
 target_link_libraries(galaxian PRIVATE galaxian_core)
 

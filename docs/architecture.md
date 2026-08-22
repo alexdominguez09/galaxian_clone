@@ -487,6 +487,35 @@ spec §9):
 enum class GameState { Title, Playing, Paused, GameOver };
 ```
 
+Stage 17 implements it (`src/states/GameState.{hpp,cpp}`,
+`src/states/StateMachine.{hpp,cpp}`):
+
+- **Validated graph** (`isLegalGameStateTransition`, constexpr): EXACTLY
+  `Title→Playing`, `Playing→Paused`, `Paused→Playing`,
+  `Playing→GameOver`, `GameOver→Title`. Skips, self-transitions and
+  backwards jumps are rejected; the table is exhaustively unit-tested
+  (16 pairs) with compile-time spot checks.
+- **`StateMachine`**: holds the current id, accepts only legal requests,
+  fires one callback AFTER each accepted change. `Game::onStateChanged`
+  runs the enter bookkeeping: entering **Playing from Title** calls
+  `startNewGame()` — score reset, player `resetGame()`, formation
+  rebuilt, projectile/effect pools wiped, director + waves restarted at
+  wave 1 (spec §10: no stale entities); **Paused→Playing** resumes the
+  very same game untouched; entering **Title** resets to a clean state.
+- **State-driven keys** (spec §4): Title = Enter starts / Escape quits;
+  Playing = Escape pauses; Paused = Escape resumes; GameOver = Enter
+  returns to Title. Window-close quits from anywhere.
+- **Simulation gating**: only PLAYING runs `fixedUpdate`; Paused freezes
+  everything while the timestep keeps draining so a resume never
+  fast-forwards (verified via frozen update counters); Title/GameOver
+  have no simulation. The run ends into GameOver when the player's last
+  life is gone.
+- **Per-state screens**: Title = logo/high-score placeholder/PRESS ENTER;
+  GameOver = final score + wave reached + PRESS ENTER; Playing/Paused
+  share the playfield render, Paused adds the overlay.
+- Headless smoke runs skip the title (a composition-root decision in
+  main.cpp — the Game class itself always boots to Title).
+
 - `Game` holds the current state object; transitions are explicit and
   validated. Entering `Playing` constructs a fresh `PlayState` (no stale
   entities); `Paused` freezes the same `PlayState` (no re-simulation).

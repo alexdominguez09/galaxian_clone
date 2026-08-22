@@ -37,6 +37,14 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    // Headless smoke runs skip the title screen so the simulation is
+    // observable from the first frame (a composition-root decision; the
+    // Game class itself always boots to Title).
+    if (game.inSmokeMode() &&
+        game.state() == galaxian::GameStateId::Title) {
+        game.changeState(galaxian::GameStateId::Playing);
+    }
+
     game.run();
     game.shutdown();
 

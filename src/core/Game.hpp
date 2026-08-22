@@ -12,6 +12,7 @@
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
 #include "gameplay/WaveManager.hpp"
+#include "states/StateMachine.hpp"
 #include "graphics/DevScene.hpp"
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -99,6 +100,21 @@ public:
     void setSmokeFrames(int frames) { smokeFrames_ = frames; }
     void setSmokeSeconds(double seconds) { smokeSeconds_ = seconds; }
 
+    // Stage 17: the top-level state machine (Title/Playing/Paused/
+    // GameOver). changeState validates against the spec §10 graph and runs
+    // the enter bookkeeping; illegal transitions are rejected.
+    GameStateId state() const { return states_.current(); }
+    bool changeState(GameStateId to);
+
+    // Stage 17 test hook: queues a synthetic key press+release through the
+    // InputManager (consumed on the next pollEvents).
+    void injectKey(std::uint32_t key) { input_.injectKeyDown(key); input_.injectKeyUp(key); }
+
+    // Shared-system getters (tests / HUD states).
+    const ScoreManager& score() const { return score_; }
+    const WaveManager& waves() const { return waves_; }
+    const Player& player() const { return player_; }
+
     bool inSmokeMode() const { return smokeFrames_ > 0 || smokeSeconds_ > 0.0; }
     int smokeResultFrames() const { return frameCount_; }
     int smokeResultUpdates() const { return updateCount_; }
@@ -107,6 +123,17 @@ public:
 
 private:
     void processEvents();
+    // Stage 17 state-machine callback: enter/exit bookkeeping per the
+    // spec §10 responsibilities (fresh game entering Playing from Title,
+    // clean reset entering Title, nothing for pause/resume).
+    static void onStateChanged(GameStateId from, GameStateId to,
+                               void* self);
+    // Fresh entities everywhere (spec §10: no stale state on entry).
+    void startNewGame();
+    // Stage 17 render branches.
+    void renderPlayfield(bool paused);
+    void renderTitle();
+    void renderGameOver();
     // Reads this frame's input once (after pollEvents, before the fixed
     // updates): the held movement level becomes pendingDirection_ and a Fire
     // press edge sets fireRequested_. Done once per frame so the pressed
@@ -164,6 +191,9 @@ private:
     // interstitial, and the bounded difficulty handover to the next
     // formation + director parameters.
     WaveManager waves_;
+    // Stage 17: the top-level state machine (spec §10 graph, validated
+    // transitions; the callback runs the enter/exit bookkeeping).
+    StateMachine states_;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

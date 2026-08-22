@@ -31,7 +31,7 @@ void DevScene::draw(Renderer& renderer) const
     renderer.drawText("PLAYER=TRIANGLE  ENEMIES=SQUARES", {16.0f, 40.0f},
                       colors::kWhite);
     renderer.drawText(
-        "LEFT/RIGHT=MOVE  SPACE=FIRE  F1=BOXES  F2=STATS+LABELS  F3=DIVE  ESC=QUIT",
+        "LEFT/RIGHT=MOVE  SPACE=FIRE  F1=BOXES  F2=STATS+LABELS  F3=DIVE  ESC=PAUSE",
         {16.0f, 552.0f}, colors::kWhite);
 }
 

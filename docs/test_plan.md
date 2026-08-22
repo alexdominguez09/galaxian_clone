@@ -158,10 +158,10 @@ Manual:
 - [x] Wave counter in HUD matches WaveManager state
 
 ### Stage 17 — Game states
-- [ ] Every transition in the state graph works; illegal ones rejected
-- [ ] start → die → game over → restart ×100: no leaked entities
-- [ ] pause → resume ×100: simulation time frozen while paused
-- [ ] Quit from any state exits cleanly
+- [x] Every transition in the state graph works; illegal ones rejected
+- [x] start → die → game over → restart ×100: no leaked entities
+- [x] pause → resume ×100: simulation time frozen while paused
+- [x] Quit from any state exits cleanly
 
 ### Stage 18 — HUD
 - [ ] Score display equals ScoreManager value after each event

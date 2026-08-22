@@ -87,6 +87,10 @@ public:
     // invulnerability window. No-op unless currently Respawning.
     void confirmRespawn();
 
+    // Fresh game (Stage 17 state transitions): full lives, Alive, at the
+    // start position, fire count zeroed.
+    void resetGame();
+
     // Seconds left on the current state's timer (diagnostics/tests).
     double stateTimer() const { return stateTimer_; }
 

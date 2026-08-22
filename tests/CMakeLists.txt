@@ -46,6 +46,7 @@ add_executable(galaxian_tests
     test_formation_motion.cpp
     test_scoring.cpp
     test_combat.cpp
+    test_game_states.cpp
     test_wave_manager.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE

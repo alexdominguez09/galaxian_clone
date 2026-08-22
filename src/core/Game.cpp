@@ -8,6 +8,7 @@
 #include "gameplay/Combat.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
+#include "states/GameState.hpp"
 
 namespace galaxian {
 
@@ -29,6 +30,45 @@ constexpr double kInvulnerableBlinkPeriodSeconds = 0.25;
 
 Game::~Game() { shutdown(); }
 
+bool Game::changeState(GameStateId to)
+{
+    return states_.request(to);
+}
+
+void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
+{
+    auto* game = static_cast<Game*>(self);
+    std::printf("State: %s -> %s\n", gameStateName(from),
+                gameStateName(to));
+    switch (to) {
+        case GameStateId::Playing:
+            // Spec §10: entering Playing always starts a fresh game — but
+            // a resume from Paused keeps the very same one running.
+            if (from == GameStateId::Title) {
+                game->startNewGame();
+            }
+            break;
+        case GameStateId::Title:
+            // Entering Title always resets to a clean state.
+            game->startNewGame();
+            break;
+        case GameStateId::Paused:
+        case GameStateId::GameOver:
+            break;  // the scene freezes as-is / final score stays up
+    }
+}
+
+void Game::startNewGame()
+{
+    score_.reset();
+    player_.resetGame();
+    formation_.reset();
+    projectiles_.reset();
+    effects_.reset();
+    attacks_.beginWave(1);
+    waves_.beginWave(1);
+}
+
 bool Game::initialize()
 {
     if (initialized_) {
@@ -40,6 +80,9 @@ bool Game::initialize()
     }
     // Stage 4: bring up the input layer after SDL (the renderer) is ready.
     input_.initialize();
+    // Stage 17: the top-level state machine starts on the Title screen;
+    // every accepted transition runs the enter bookkeeping below.
+    states_.setCallback(&Game::onStateChanged, this);
     if (!devScene_.initialize(renderer_)) {
         std::fprintf(stderr, "galaxian: dev scene initialization failed\n");
         shutdown();
@@ -92,10 +135,15 @@ void Game::run()
         updateInputState();
 
         const int steps = timestep_.advance(frameDelta);
-        for (int i = 0; i < steps; ++i) {
-            fixedUpdate(timestep_.dt());
+        // Stage 17: ONLY PLAYING simulates. Paused freezes the scene
+        // entirely (the timestep keeps draining so a resume never
+        // fast-forwards); Title/GameOver have no simulation at all.
+        if (states_.current() == GameStateId::Playing) {
+            for (int i = 0; i < steps; ++i) {
+                fixedUpdate(timestep_.dt());
+            }
+            updatesSinceReport_ += steps;
         }
-        updatesSinceReport_ += steps;
 
         // Dev scene (text, static bullet rectangles, border). The Stage 4
         // input demo that moved a stand-in player is gone: the real Player
@@ -172,11 +220,34 @@ void Game::processEvents()
             }
         }
     }
-    if (input_.wasPressed(Action::Pause)) {
-        // Escape. The Stage 17 state machine turns this into pause/resume;
-        // until then the single dev scene acts as the title, so Escape quits
-        // (preserving the Stage 1 "Escape exits with code 0" acceptance).
-        running_ = false;
+    // Stage 17: state-driven menu keys (docs/game_spec.md §4/§10).
+    //   Title:    Enter starts, Escape quits the application.
+    //   Playing:  Escape pauses.
+    //   Paused:   Escape resumes.
+    //   GameOver: Enter returns to a clean Title.
+    switch (states_.current()) {
+        case GameStateId::Title:
+            if (input_.wasPressed(Action::Start)) {
+                changeState(GameStateId::Playing);
+            } else if (input_.wasPressed(Action::Pause)) {
+                running_ = false;  // title -> quit (spec §4, Stage 1)
+            }
+            break;
+        case GameStateId::Playing:
+            if (input_.wasPressed(Action::Pause)) {
+                changeState(GameStateId::Paused);
+            }
+            break;
+        case GameStateId::Paused:
+            if (input_.wasPressed(Action::Pause)) {
+                changeState(GameStateId::Playing);
+            }
+            break;
+        case GameStateId::GameOver:
+            if (input_.wasPressed(Action::Start)) {
+                changeState(GameStateId::Title);
+            }
+            break;
     }
 }
 
@@ -310,6 +381,11 @@ void Game::fixedUpdate(double dt)
         std::printf("Wave %d begins\n", waves_.wave());
     }
 
+    // Stage 17: the last life gone ends the run (Playing -> GameOver).
+    if (player_.state() == PlayerState::GameOver) {
+        changeState(GameStateId::GameOver);
+    }
+
     // These counters prove the loop runs a deterministic number of steps:
     // simTime_ must equal updateCount_ * dt at all times.
     ++updateCount_;
@@ -317,6 +393,52 @@ void Game::fixedUpdate(double dt)
 }
 
 void Game::render()
+{
+    // Stage 17: each top-level state owns its screen. Title and GameOver
+    // are pure text screens; Playing and Paused share the frozen playfield
+    // (Paused adds the overlay and never advances).
+    switch (states_.current()) {
+        case GameStateId::Title:
+            renderTitle();
+            return;
+        case GameStateId::GameOver:
+            renderGameOver();
+            return;
+        case GameStateId::Playing:
+        case GameStateId::Paused:
+        default:
+            renderPlayfield(states_.current() == GameStateId::Paused);
+            return;
+    }
+}
+
+void Game::renderTitle()
+{
+    devScene_.draw(renderer_);
+    renderer_.drawText("GALAXIAN CLONE", {118.0f, 176.0f}, colors::kWhite,
+                       24);
+    renderer_.drawText("HIGH SCORE 000000", {150.0f, 236.0f},
+                       colors::kGreen);
+    renderer_.drawText("PRESS ENTER TO START", {122.0f, 320.0f},
+                       colors::kWhite, 24);
+    renderer_.drawText("ESC QUITS", {192.0f, 380.0f}, colors::kBorder);
+    renderer_.present();
+}
+
+void Game::renderGameOver()
+{
+    devScene_.draw(renderer_);
+    char line[64];
+    renderer_.drawText("GAME OVER", {158.0f, 200.0f}, colors::kEnemyRed, 24);
+    std::snprintf(line, sizeof(line), "FINAL SCORE %d", score_.score());
+    renderer_.drawText(line, {150.0f, 260.0f}, colors::kGreen);
+    std::snprintf(line, sizeof(line), "REACHED WAVE %d", waves_.wave());
+    renderer_.drawText(line, {158.0f, 284.0f}, colors::kGreen);
+    renderer_.drawText("PRESS ENTER", {166.0f, 340.0f}, colors::kWhite, 24);
+    renderer_.present();
+}
+
+void Game::renderPlayfield(bool paused)
 {
     // Stage 3 test scene: text, static projectile rectangles, screen border.
     // (The dummy enemies and the Stage 4 action table were removed in
@@ -445,6 +567,13 @@ void Game::render()
             boxes.push_back(projectiles_.projectile(i).bounds());
         }
         DebugOverlay::drawCollisionBoxes(renderer_, boxes, colors::kDebugBox);
+    }
+
+    // Stage 17: the pause overlay on the frozen scene.
+    if (paused) {
+        renderer_.drawText("PAUSED", {186.0f, 264.0f}, colors::kEffect, 24);
+        renderer_.drawText("ESC TO RESUME", {162.0f, 300.0f},
+                           colors::kWhite);
     }
 
     renderer_.present();

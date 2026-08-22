@@ -87,6 +87,15 @@ void Player::confirmRespawn()
     stateTimer_ = kInvulnerableSeconds;
 }
 
+void Player::resetGame()
+{
+    position_ = kStartPosition;
+    state_ = PlayerState::Alive;
+    lives_ = kLives;
+    stateTimer_ = 0.0;
+    fireCount_ = 0;
+}
+
 Rect Player::bounds() const
 {
     return {position_.x - kWidth * 0.5f,
