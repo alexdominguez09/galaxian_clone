@@ -220,8 +220,19 @@ void Game::fixedUpdate(double dt)
     // Stage 10: the formation oscillates horizontally (spec §6.3, 64 px
     // peak-to-peak around the anchor, base period 4 s, speeding up as
     // enemies die up to the 2.5x bound) — gameplay/EnemyFormation, SDL-free,
-    // phase accumulation on the fixed step.
+    // phase accumulation on the fixed step. This also advances every
+    // enemy's own state machine.
     formation_.update(dt);
+
+    // Stage 13: the AttackDirector — the central pacing authority (spec
+    // §7). It sees this step's post-move states and launches at most one
+    // attacker per elapsed interval, never exceeding the wave's
+    // simultaneous-attacker cap. Wave 1 defaults until the wave system
+    // lands in Stage 16.
+    const int launched = attacks_.update(dt, formation_);
+    if (launched > 0) {
+        std::printf("AttackDirector launched an attack\n");
+    }
 
     // Stage 9: player bullets vs the formation (gameplay/Combat, SDL-free,
     // runs after both move so it sees their new positions): a hit
@@ -296,8 +307,10 @@ void Game::render()
         renderer_.drawText(line, {16.0f, 496.0f}, colors::kGreen);
         const int entities = formation_.aliveCount() +
                              (player_.alive() ? 1 : 0) + projectiles_.count();
-        std::snprintf(line, sizeof(line), "ENT: %d (enemy %d, proj %d)",
-                      entities, formation_.aliveCount(), projectiles_.count());
+        std::snprintf(line, sizeof(line),
+                      "ENT: %d (enemy %d, proj %d, atk %d)", entities,
+                      formation_.aliveCount(), projectiles_.count(),
+                      AttackDirector::activeAttacks(formation_));
         renderer_.drawText(line, {16.0f, 512.0f}, colors::kGreen);
         // Stage 9: the ScoreManager's value (the full HUD lands in
         // Stage 18).
@@ -369,9 +382,10 @@ void Game::reportStats()
                              (player_.alive() ? 1 : 0) + projectiles_.count();
         std::fprintf(stderr,
                       "[stats] fps=%.1f frame=%.2fms updates/s=%.0f "
-                      "sim_time=%.1fs entities=%d score=%d\n",
+                      "sim_time=%.1fs entities=%d score=%d atk=%d\n",
                       fps_, lastFrameSeconds_ * 1000.0, updatesPerSecond_,
-                      simTime_, entities, score_.score());
+                      simTime_, entities, score_.score(),
+                      AttackDirector::activeAttacks(formation_));
     }
 
     lastReportSeconds_ = now;

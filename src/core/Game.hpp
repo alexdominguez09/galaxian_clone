@@ -5,6 +5,7 @@
 #include "Constants.hpp"
 #include "GameClock.hpp"
 #include "TimestepController.hpp"
+#include "gameplay/AttackDirector.hpp"
 #include "gameplay/Effects.hpp"
 #include "gameplay/EnemyFormation.hpp"
 #include "gameplay/Player.hpp"
@@ -54,6 +55,12 @@ namespace galaxian {
 // with simple paths: validated transitions, state-aware bounds so combat
 // hits divers where they are, F2 state labels, and an F3 debug aid that
 // sends one enemy through a full dive cycle (real selection is Stage 13).
+// Stage 12 upgraded the motion to real cubic-Bézier trajectories
+// (gameplay/DivePath) paced along their arc length. Stage 13 adds the
+// AttackDirector — the central pacing authority (spec §7): it launches at
+// most one attacker per elapsed interval and never exceeds the wave's
+// simultaneous-attacker cap; selection is deterministic (front rows first,
+// rotating column cursor) and only ever picks Formation-state enemies.
 class Game {
 public:
     Game() = default;
@@ -142,6 +149,10 @@ private:
     // site). Updated in fixedUpdate() and drawn in render(); Stage 19
     // replaces the placeholder with the explosion animation.
     EffectManager effects_;
+    // Stage 13: the attack director — the central pacing authority (spec
+    // §7). Runs in fixedUpdate() after the formation moves; wave 1
+    // defaults (1 attacker, 6 s interval) until Stage 16's waves arrive.
+    AttackDirector attacks_;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

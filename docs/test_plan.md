@@ -128,12 +128,12 @@ Manual:
 - [x] Path speed is frame-rate independent (arc-length or parametric check)
 
 ### Stage 13 — Attack director
-- [ ] Attack count never exceeds wave maximum
-- [ ] Attack interval respected (±1 frame)
-- [ ] Dead enemies never selected
-- [ ] Diving enemies never re-selected
-- [ ] No eligible attacker → attack skipped, no deadlock (1000-tick soak)
-- [ ] All 40 enemies dead → director idles safely
+- [x] Attack count never exceeds wave maximum
+- [x] Attack interval respected (±1 frame)
+- [x] Dead enemies never selected
+- [x] Diving enemies never re-selected
+- [x] No eligible attacker → attack skipped, no deadlock (1000-tick soak)
+- [x] All 40 enemies dead → director idles safely
 
 ### Stage 14 — Enemy projectiles
 - [ ] Enemy fires during attack (1–2 shots per wave rules)

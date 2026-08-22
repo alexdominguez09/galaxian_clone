@@ -307,6 +307,35 @@ Stage 12 replaces the placeholder motion with real trajectories
   explicitly (the F3 debug aid picks left/right from the enemy's screen
   half). Stage 13's AttackDirector owns the real choice.
 
+Stage 13 adds the pacing authority (`gameplay/AttackDirector.{hpp,cpp}`,
+spec §7):
+
+- **Data-driven waves**: `waveParams(wave)` implements the spec §7 table —
+  max simultaneous attackers 1→2→3→4 (the last rise at wave 7), attack
+  interval 6 s → 4 s → floored at 3 s, shots per attack 1→2 (Stage 14
+  consumes the fire budget). Nothing ever exceeds these bounds.
+- **One launch per elapsed interval** (staggered attacks stay predictable):
+  the timer accumulates dt; a launch fires on the first tick where BOTH
+  the interval elapsed AND capacity remains below the cap, then resets.
+  A 1 ns tolerance on the boundary keeps launches deterministic across
+  platforms (same convention as the other simulation timers). Capacity or
+  eligibility may delay a launch further — the interval is a minimum
+  spacing, never violated early.
+- **Deterministic selection**: front rows first (bottom-up scan) with a
+  rotating column cursor that advances after every launch, so attacks
+  spread across the grid. Only Formation-state enemies are eligible —
+  dead and already-away enemies are never selected, so nobody dives twice
+  concurrently. The dive pattern follows the slot's column band
+  (outer columns sweep outward via LeftDive/RightDive, middle columns
+  plunge with CenterAttack).
+- **No deadlock**: when nobody is eligible (e.g. everything is dead or
+  mid-dive) ticks simply skip; the timer keeps running and the next
+  free+eligible moment fires. An empty formation idles safely forever.
+- **Integration**: `Game::fixedUpdate` runs the director right after
+  `formation_.update(dt)` (post-move states) with wave 1 defaults until
+  Stage 16's wave system; F2/console stats gained an active-attack count;
+  the F3 debug aid remains a manual bypass for development.
+
 - `EnemyDefinition` (data): points, speed, sprite index. Types: Scout,
   Guard, Commander — data-driven, no subclasses unless logic diverges.
 - `EnemyFormation` owns the grid: slot offsets + a single world position
