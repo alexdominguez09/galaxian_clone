@@ -1,5 +1,7 @@
 #include "WaveManager.hpp"
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 namespace {
@@ -32,7 +34,7 @@ WaveManager::Event WaveManager::update(double dt,
     if (phase_ == Phase::Active) {
         if (formation.aliveCount() == 0) {
             phase_ = Phase::Interstitial;
-            remaining_ = kInterstitialSeconds;
+            remaining_ = GameConfig::get().interstitialSeconds;
             return Event::WaveCleared;
         }
         return Event::None;

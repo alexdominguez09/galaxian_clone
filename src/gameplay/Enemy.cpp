@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 namespace {
@@ -17,9 +19,27 @@ constexpr double kPrepareEpsilon = 1e-9;
 Enemy::Enemy(EnemyType type, Vector2 slotOffset)
     : type_(type), slotOffset_(slotOffset) {}
 
-const EnemyDefinition& Enemy::definition() const
+EnemyDefinition Enemy::definition() const
 {
-    return kEnemyDefinitions[static_cast<int>(type_)];
+    // Points + dive speed are BALANCE data (Stage 21 GameConfig); the
+    // sprite index is the structural §6.1 mapping.
+    const GameConfig& cfg = GameConfig::get();
+    EnemyDefinition def = kEnemyDefinitions[static_cast<int>(type_)];
+    switch (type_) {
+        case EnemyType::Scout:
+            def.points = cfg.scoutPoints;
+            def.speed = cfg.scoutDiveSpeed;
+            break;
+        case EnemyType::Guard:
+            def.points = cfg.guardPoints;
+            def.speed = cfg.guardDiveSpeed;
+            break;
+        case EnemyType::Commander:
+            def.points = cfg.commanderPoints;
+            def.speed = cfg.commanderDiveSpeed;
+            break;
+    }
+    return def;
 }
 
 Vector2 Enemy::screenPosition(Vector2 formationPosition) const

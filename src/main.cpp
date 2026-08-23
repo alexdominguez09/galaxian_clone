@@ -1,4 +1,5 @@
 #include "core/Game.hpp"
+#include "core/GameConfig.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -12,8 +13,9 @@ int main(int argc, char** argv)
     //   --smoke <frames>     exit after N rendered frames
     //   --smoke-time <secs>  exit after N seconds of wall time
     //   --no-vsync           render without vertical sync
-    // Headless smoke run: SDL_VIDEODRIVER=dummy ./build/galaxian --smoke 120
+    //   --config <path>      balance config (default assets/config/game.json)
     bool vsync = true;
+    std::string configPath = "assets/config/game.json";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--smoke" && i + 1 < argc) {
@@ -28,10 +30,20 @@ int main(int argc, char** argv)
             }
         } else if (arg == "--no-vsync") {
             vsync = false;
+        } else if (arg == "--config" && i + 1 < argc) {
+            configPath = argv[++i];
         }
     }
 
     game.setVsync(vsync);
+
+    // Stage 21: load the balance configuration BEFORE anything initializes,
+    // so every system reads the configured values from the first step.
+    galaxian::GameConfig config;
+    if (!config.loadFromFile(configPath)) {
+        std::printf("config: using documented defaults\n");
+    }
+    galaxian::GameConfig::set(config);
 
     if (!game.initialize()) {
         return 1;

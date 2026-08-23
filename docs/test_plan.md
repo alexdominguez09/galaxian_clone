@@ -184,9 +184,9 @@ Manual:
 - [x] Shutdown releases audio (no leak reports)
 
 ### Stage 21 — Configuration
-- [ ] All §14 spec values load from game.json and are used by gameplay
-- [ ] Changing a value changes behavior without recompiling
-- [ ] Missing/invalid config → documented defaults, no crash
+- [x] All §14 spec values load from game.json and are used by gameplay
+- [x] Changing a value changes behavior without recompiling
+- [x] Missing/invalid config → documented defaults, no crash
 
 ### Stage 22 — High score persistence
 - [ ] Score survives quit/relaunch

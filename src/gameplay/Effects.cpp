@@ -1,5 +1,7 @@
 #include "Effects.hpp"
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 namespace {
@@ -23,7 +25,7 @@ bool EffectManager::add(Vector2 position, float width, float height)
     e.position = position;
     e.width = width;
     e.height = height;
-    e.timeRemaining = kDurationSeconds;
+    e.timeRemaining = GameConfig::get().explosionSeconds;
     e.active = true;
     return true;
 }

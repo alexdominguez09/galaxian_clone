@@ -601,7 +601,31 @@ Stage 20 implements it (`src/audio/AudioManager.{hpp,cpp}`):
 - `HighScore`: load/save `~/.local/share/galaxian-clone/highscore.dat`.
 - Corrupt/missing file → 0. Atomic write (write temp + rename).
 
+### 3.12 Data-driven configuration (Stage 21)
+
+- **`core/GameConfig.{hpp,cpp}`**: one struct of BALANCE knobs (player
+  speed/lives/cooldown/bullet speed, enemy points + dive speeds, enemy
+  bullet base/ramp/max, formation swing/period/multiplier, the spec §7
+  wave table as six bracket rows, interstitial/explosion/respawn/
+  invulnerability durations). The in-header defaults equal the previously
+  frozen constants.
+- **Loading** (`assets/config/game.json`, `--config <path>` override):
+  missing/unreadable file or invalid JSON -> documented defaults, never a
+  crash; a present-but-invalid value falls back PER KEY with a stderr
+  note; unknown keys are ignored; structural clamps applied post-load
+  (attackers 1..4, shots 1..2, interval >= 1 s, speeds floored, lives
+  1..9, max enemy bullet speed <= 720).
+- **Consumption**: gameplay reads the process-wide config
+  (`GameConfig::get()`) that main() installs before initialization —
+  balance is adjustable WITHOUT recompiling (verified end-to-end: a JSON
+  tweak changes attack timing and player speed in the running binary).
+  Structural rules stay in C++: state machines, collision semantics, pool
+  sizes, grid geometry, the §7 progression shape and its caps.
+- **Tests** mutate and restore the global config safely (guard pattern).
+
 ## 4. Testing Strategy
+
+
 
 - **Catch2** (v3) for unit tests; tests are plain executables built with
   CTest (`ctest --test-dir build`).

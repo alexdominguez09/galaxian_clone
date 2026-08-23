@@ -27,11 +27,22 @@ find_package(SDL2 REQUIRED)
 find_package(SDL2_ttf REQUIRED)
 find_package(SDL2_image REQUIRED)
 
+# Stage 21: data-driven configuration (assets/config/game.json). Header-only
+# JSON library, fetched once like Catch2.
+include(FetchContent)
+FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP NEW
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
 # Core library: timing + shared types + rendering + states. Kept separate
 # so unit tests can link the logic without the full application.
 add_library(galaxian_core STATIC
     src/audio/AudioManager.cpp
     src/core/GameClock.cpp
+    src/core/GameConfig.cpp
     src/core/TimestepController.cpp
     src/core/Game.cpp
     src/states/GameState.cpp
@@ -60,6 +71,7 @@ add_library(galaxian_core STATIC
 target_include_directories(galaxian_core PUBLIC src)
 target_link_libraries(galaxian_core PUBLIC
     SDL2::SDL2
+    nlohmann_json::nlohmann_json
     SDL2_ttf::SDL2_ttf
     SDL2_image::SDL2_image
 )

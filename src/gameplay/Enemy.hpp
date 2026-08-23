@@ -122,7 +122,11 @@ public:
     Enemy(EnemyType type, Vector2 slotOffset);
 
     EnemyType type() const { return type_; }
-    const EnemyDefinition& definition() const;
+
+    // The type's CURRENT data (points/dive speed from the live GameConfig,
+    // sprite index from the structural table). Returned by value so config
+    // changes apply immediately without invalidating references.
+    EnemyDefinition definition() const;
     Vector2 slotOffset() const { return slotOffset_; }
 
     EnemyState state() const { return state_; }

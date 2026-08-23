@@ -1,5 +1,7 @@
 #include "Player.hpp"
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 namespace {
@@ -54,7 +56,8 @@ void Player::move(double dt, float direction)
     if (direction == 0.0f) {
         return;
     }
-    position_.x += direction * kSpeed * static_cast<float>(dt);
+    position_.x +=
+        direction * GameConfig::get().playerSpeed * static_cast<float>(dt);
     clampToScreen();
 }
 
@@ -73,7 +76,7 @@ bool Player::hit()
     }
     --lives_;
     state_ = PlayerState::Dying;
-    stateTimer_ = kRespawnDelaySeconds;
+    stateTimer_ = GameConfig::get().respawnDelaySeconds;
     return true;
 }
 
@@ -84,14 +87,14 @@ void Player::confirmRespawn()
     }
     position_ = kStartPosition;
     state_ = PlayerState::Invulnerable;
-    stateTimer_ = kInvulnerableSeconds;
+    stateTimer_ = GameConfig::get().invulnerableSeconds;
 }
 
 void Player::resetGame()
 {
     position_ = kStartPosition;
     state_ = PlayerState::Alive;
-    lives_ = kLives;
+    lives_ = GameConfig::get().initialLives;
     stateTimer_ = 0.0;
     fireCount_ = 0;
 }

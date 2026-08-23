@@ -1,0 +1,38 @@
+{
+    "//": "Galaxian balance configuration (docs/game_spec.md §14, Stage 21).",
+    "//2": "Structural rules (state machines, collision semantics, caps) live in C++.",
+    "//3": "Missing keys fall back to these defaults; unknown keys are ignored.",
+
+    "player_speed": 220,
+    "initial_lives": 3,
+    "player_bullet_speed": 480,
+    "fire_cooldown_seconds": 0.35,
+    "max_player_projectiles": 2,
+
+    "score_scout": 50,
+    "score_guard": 80,
+    "score_commander": 150,
+    "scout_dive_speed": 140,
+    "guard_dive_speed": 100,
+    "commander_dive_speed": 70,
+
+    "enemy_bullet_base_speed": 240,
+    "enemy_bullet_ramp_per_wave": 40,
+    "enemy_bullet_max_speed": 360,
+
+    "formation_swing_px": 64,
+    "formation_period_seconds": 4.0,
+    "formation_max_speed_multiplier": 2.5,
+
+    "wave_1":      { "max_attackers": 1, "interval": 6.0, "shots": 1 },
+    "wave_2":      { "max_attackers": 2, "interval": 6.0, "shots": 1 },
+    "wave_3":      { "max_attackers": 2, "interval": 4.0, "shots": 1 },
+    "wave_4":      { "max_attackers": 2, "interval": 4.0, "shots": 2 },
+    "wave_5_to_6": { "max_attackers": 3, "interval": 3.0, "shots": 2 },
+    "wave_7_plus": { "max_attackers": 4, "interval": 3.0, "shots": 2 },
+
+    "interstitial_seconds": 2.0,
+    "explosion_seconds": 0.25,
+    "respawn_delay_seconds": 1.5,
+    "invulnerable_seconds": 2.0
+}

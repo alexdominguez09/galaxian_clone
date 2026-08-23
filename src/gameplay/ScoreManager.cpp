@@ -1,11 +1,19 @@
 #include "ScoreManager.hpp"
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 int ScoreManager::addKill(EnemyType type, int multiplier)
 {
-    const int points =
-        kEnemyDefinitions[static_cast<int>(type)].points * multiplier;
+    const GameConfig& cfg = GameConfig::get();
+    int base = cfg.scoutPoints;
+    switch (type) {
+        case EnemyType::Guard:     base = cfg.guardPoints; break;
+        case EnemyType::Commander: base = cfg.commanderPoints; break;
+        case EnemyType::Scout: break;
+    }
+    const int points = base * multiplier;
     ++kills_;
     score_ += points;
     if (score_ > highScore_) {

@@ -1,5 +1,7 @@
 #include "Projectile.hpp"
 
+#include "core/GameConfig.hpp"
+
 #include <cmath>
 
 namespace galaxian {
@@ -26,13 +28,14 @@ bool ProjectileManager::tryFirePlayer(const Player& player)
     const Rect pb = player.bounds();
     const Vector2 position{pb.x + pb.width * 0.5f - Projectile::kWidth * 0.5f,
                            pb.top() - Projectile::kHeight};
-    if (!spawn(ProjectileOwner::Player, position, Vector2{0.0f, -kPlayerSpeed})) {
+    if (!spawn(ProjectileOwner::Player, position,
+               Vector2{0.0f, -GameConfig::get().playerBulletSpeed})) {
         return false;
     }
     // The cooldown starts when a projectile is actually spawned; a rejected
     // shot (max reached, pool full) does not extend it.
     cooldownRemaining_[static_cast<int>(ProjectileOwner::Player)] =
-        kFireCooldownSeconds;
+        GameConfig::get().fireCooldownSeconds;
     return true;
 }
 
@@ -153,7 +156,8 @@ int ProjectileManager::count(ProjectileOwner owner) const
 
 bool ProjectileManager::canFirePlayer() const
 {
-    return count(ProjectileOwner::Player) < kMaxPlayerProjectiles &&
+    return count(ProjectileOwner::Player) <
+               GameConfig::get().maxPlayerProjectiles &&
            cooldownRemaining_[static_cast<int>(ProjectileOwner::Player)] <=
                kCooldownEpsilon;
 }

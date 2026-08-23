@@ -2,6 +2,8 @@
 
 #include <numbers>
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 void EnemyFormation::reset()
@@ -19,9 +21,10 @@ void EnemyFormation::reset()
 double EnemyFormation::speedMultiplier() const
 {
     // Spec §6.3 pressure mechanic: the oscillation speeds up linearly as
-    // enemies die, hitting exactly kMaxSpeedMultiplier (2.5x) when the
-    // formation is empty.
-    return 1.0 + (kMaxSpeedMultiplier - 1.0) *
+    // enemies die, hitting exactly the configured maximum (default 2.5x)
+    // when the formation is empty.
+    const double maxMultiplier = GameConfig::get().oscillationMaxMultiplier;
+    return 1.0 + (maxMultiplier - 1.0) *
                      (1.0 - static_cast<double>(aliveCount()) /
                                 static_cast<double>(kTotal));
 }
@@ -38,7 +41,10 @@ void EnemyFormation::update(double dt)
     // bound over long sessions; increments are always far below one turn,
     // so a single floor-based wrap is exact.
     constexpr double kTwoPi = 2.0 * std::numbers::pi;
-    phase_ += (kTwoPi / kOscillationPeriodSeconds) * speedMultiplier() * dt;
+    const double periodSeconds = GameConfig::get().oscillationPeriodSeconds;
+    const float halfSwing =
+        GameConfig::get().oscillationSwingPx * 0.5f;  // ±half of peak-to-peak
+    phase_ += (kTwoPi / periodSeconds) * speedMultiplier() * dt;
     if (phase_ >= kTwoPi) {
         phase_ -= kTwoPi * std::floor(phase_ / kTwoPi);
     }
@@ -50,7 +56,7 @@ void EnemyFormation::update(double dt)
     // the phase every step (not incremented), y never changes.
     position_.x =
         static_cast<float>(static_cast<double>(kAnchor.x) +
-                           kOscillationHalfSwing * std::sin(phase_));
+                           halfSwing * std::sin(phase_));
 
     // Stage 11: advance every enemy's own state machine (prepare timers,
     // dive motion). Slot members do not self-move; divers home towards the

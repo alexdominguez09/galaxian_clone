@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "core/GameConfig.hpp"
 #include "gameplay/Combat.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
@@ -537,7 +538,7 @@ void Game::renderPlayfield(bool paused)
     for (int i = 0; i < effects_.count(); ++i) {
         const Effect& e = effects_.effect(i);
         double progress =
-            1.0 - e.timeRemaining / EffectManager::kDurationSeconds;
+            1.0 - e.timeRemaining / GameConfig::get().explosionSeconds;
         if (progress < 0.0) {
             progress = 0.0;
         }

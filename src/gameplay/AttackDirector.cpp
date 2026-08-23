@@ -1,5 +1,7 @@
 #include "AttackDirector.hpp"
 
+#include "core/GameConfig.hpp"
+
 namespace galaxian {
 
 namespace {
@@ -14,24 +16,36 @@ constexpr double kIntervalEpsilon = 1e-9;
 
 AttackWaveParams waveParams(int wave)
 {
-    // Spec §7 table. Waves below 1 clamp to wave 1 (defensive; the wave
-    // system lands in Stage 16 and always passes >= 1).
+    // Spec §7 pacing table — now DATA-DRIVEN from the GameConfig rows
+    // ([0]=w1 .. [3]=w4 [4]=w5-6 [5]=w7+), with the structural caps
+    // re-asserted here so a bypassed loader can never break bounds.
+    const GameConfig& cfg = GameConfig::get();
+    AttackWaveParams p{};
     if (wave <= 1) {
-        return {1, 6.0, 1};
+        p = {cfg.waves[0].maxAttackers, cfg.waves[0].intervalSeconds,
+             cfg.waves[0].shotsPerAttack};
+    } else if (wave == 2) {
+        p = {cfg.waves[1].maxAttackers, cfg.waves[1].intervalSeconds,
+             cfg.waves[1].shotsPerAttack};
+    } else if (wave == 3) {
+        p = {cfg.waves[2].maxAttackers, cfg.waves[2].intervalSeconds,
+             cfg.waves[2].shotsPerAttack};
+    } else if (wave == 4) {
+        p = {cfg.waves[3].maxAttackers, cfg.waves[3].intervalSeconds,
+             cfg.waves[3].shotsPerAttack};
+    } else {
+        p = {cfg.waves[4].maxAttackers, cfg.waves[4].intervalSeconds,
+             cfg.waves[4].shotsPerAttack};
+        if (wave >= 7) {
+            p.maxSimultaneousAttackers = cfg.waves[5].maxAttackers;
+        }
     }
-    if (wave == 2) {
-        return {2, 6.0, 1};
-    }
-    if (wave == 3) {
-        return {2, 4.0, 1};
-    }
-    if (wave == 4) {
-        return {2, 4.0, 2};
-    }
-    // Wave 5+: interval floors at 3 s; max attackers rises once more at
-    // wave 7. Nothing ever exceeds these bounds.
-    const int maxAttackers = (wave >= 7) ? 4 : 3;
-    return {maxAttackers, 3.0, 2};
+    if (p.maxSimultaneousAttackers < 1) p.maxSimultaneousAttackers = 1;
+    if (p.maxSimultaneousAttackers > 4) p.maxSimultaneousAttackers = 4;
+    if (p.shotsPerAttack < 1) p.shotsPerAttack = 1;
+    if (p.shotsPerAttack > 2) p.shotsPerAttack = 2;
+    if (p.attackIntervalSeconds < 1.0) p.attackIntervalSeconds = 1.0;
+    return p;
 }
 
 AttackDirector::AttackDirector(int wave)

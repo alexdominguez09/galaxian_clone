@@ -33,6 +33,7 @@ add_executable(galaxian_tests
     test_timestep.cpp
     test_game_clock.cpp
     test_types.cpp
+    test_config.cpp
     test_rendering.cpp
     test_input.cpp
     test_player.cpp

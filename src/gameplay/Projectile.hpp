@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Constants.hpp"
+#include "core/GameConfig.hpp"
 #include "core/Types.hpp"
 
 #include "gameplay/Player.hpp"
@@ -65,9 +66,11 @@ public:
     // hard-capped at kEnemyMaxSpeed — never unbounded multiplication.
     static double speedForWave(int wave)
     {
+        const GameConfig& cfg = GameConfig::get();
         const double w = (wave < 1) ? 1.0 : static_cast<double>(wave);
-        const double s = kEnemySpeed + 40.0 * (w - 1.0);
-        return (s > kEnemyMaxSpeed) ? kEnemyMaxSpeed : s;
+        const double s =
+            cfg.enemyBulletBaseSpeed + cfg.enemyBulletRampPerWave * (w - 1.0);
+        return (s > cfg.enemyBulletMaxSpeed) ? cfg.enemyBulletMaxSpeed : s;
     }
     // Pool capacity: the player max (2) plus headroom for the enemy fire
     // that lands in Stage 14. A spawn into a full pool fails gracefully
