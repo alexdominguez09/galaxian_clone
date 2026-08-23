@@ -40,6 +40,10 @@ public:
     int highScore() const { return highScore_; }
     void resetHighScore() { highScore_ = 0; }
 
+    // Stage 22: seeds the session high from persisted storage at boot
+    // (absolute set — the stored value IS the starting session best).
+    void seedHighScore(int value) { highScore_ = value; }
+
     // Back to a fresh game (Stage 17 state transitions, tests).
     void reset();
 

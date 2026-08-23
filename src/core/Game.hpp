@@ -17,6 +17,7 @@
 #include "graphics/DevScene.hpp"
 
 #include "../audio/AudioManager.hpp"
+#include "persistence/HighScore.hpp"
 
 #include <array>
 #include "graphics/Renderer.hpp"
@@ -208,6 +209,10 @@ private:
     // Stage 20: the audio subsystem (ids only — no file paths in gameplay;
     // silent fallback when no device is available).
     AudioManager audio_;
+    // Stage 22: high-score persistence (load at boot; atomic save at run
+    // end and on clean shutdown). The path honors GALAXIAN_DATA_DIR.
+    persistence::HighScoreStore highScoreStore_{
+        persistence::HighScoreStore::defaultPath()};
     // Stage 17: the top-level state machine (spec §10 graph, validated
     // transitions; the callback runs the enter/exit bookkeeping).
     StateMachine states_;

@@ -189,9 +189,9 @@ Manual:
 - [x] Missing/invalid config → documented defaults, no crash
 
 ### Stage 22 — High score persistence
-- [ ] Score survives quit/relaunch
-- [ ] Missing file → 0, no crash
-- [ ] Corrupt file (garbage bytes, truncated) → 0, no crash
+- [x] Score survives quit/relaunch
+- [x] Missing file → 0, no crash
+- [x] Corrupt file (garbage bytes, truncated) → 0, no crash
 - [ ] Save is atomic (no partial file after simulated crash)
 - [ ] Directory auto-created if absent
 

@@ -7,6 +7,7 @@
 
 #include "core/GameConfig.hpp"
 #include "gameplay/Combat.hpp"
+#include "persistence/HighScore.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/Hud.hpp"
@@ -51,6 +52,9 @@ void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
     } else if (to == GameStateId::GameOver) {
         game->audio_.stopMusic();
         game->audio_.playSound(SoundId::GameOver);
+        // Stage 22: the run just ended — persist immediately so even a
+        // hard power-off right now cannot lose it.
+        game->highScoreStore_.save(game->score_.highScore());
     } else if (to == GameStateId::Title) {
         game->audio_.stopMusic();
     }
@@ -100,6 +104,17 @@ bool Game::initialize()
         audio_.setSilent(true);
     }
     audio_.initialize();
+
+    // Stage 22: load the persisted high score BEFORE the first render so
+    // the title screen shows the all-time best immediately. Missing or
+    // corrupt records simply start at 0 (docs/test_plan.md Stage 22).
+    {
+        int persisted = 0;
+        if (highScoreStore_.load(&persisted)) {
+            score_.seedHighScore(persisted);
+            std::printf("High score loaded: %d\n", persisted);
+        }
+    }
     // Stage 17: the top-level state machine starts on the Title screen;
     // every accepted transition runs the enter bookkeeping below.
     states_.setCallback(&Game::onStateChanged, this);
@@ -685,6 +700,11 @@ void Game::reportStats()
 
 void Game::shutdown()
 {
+    if (initialized_) {
+        // Stage 22: persist the session best on every clean exit (the
+        // GameOver transition already saved; this covers quitting mid-run).
+        highScoreStore_.save(score_.highScore());
+    }
     audio_.shutdown();
     renderer_.shutdown();
     initialized_ = false;

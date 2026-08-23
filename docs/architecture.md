@@ -598,8 +598,22 @@ Stage 20 implements it (`src/audio/AudioManager.{hpp,cpp}`):
 
 ### 3.11 Persistence (Stage 22)
 
-- `HighScore`: load/save `~/.local/share/galaxian-clone/highscore.dat`.
-- Corrupt/missing file → 0. Atomic write (write temp + rename).
+Stage 22 implements it (`src/persistence/HighScore.{hpp,cpp}`):
+
+- **`persistence/HighScoreStore`**: pure stdio, SDL-free. Default path
+  `$GALAXIAN_DATA_DIR/highscore.dat` (hermetic override) else
+  `${XDG_DATA_HOME:-$HOME/.local/share}/galaxian-clone/highscore.dat`.
+- **Format**: one plain-text integer line — human-inspectable and strictly
+  validated on load (digits only, plausible range). Missing/empty/garbage/
+  negative/huge records all load as **0 without crashing**; a bare-digit
+  file without trailing newline is accepted deliberately (harmless
+  truncation case).
+- **Atomic save**: write `<path>.tmp`, flush, `rename()` over the target
+  (POSIX atomic) after creating missing parent directories. Readers always
+  see a complete record.
+- **Lifecycle wiring** (`Game`): loaded into `ScoreManager::seedHighScore`
+  before the first render (the title shows the all-time best immediately);
+  saved at the Playing→GameOver transition AND on every clean shutdown.
 
 ### 3.12 Data-driven configuration (Stage 21)
 

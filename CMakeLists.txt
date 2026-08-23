@@ -67,6 +67,7 @@ add_library(galaxian_core STATIC
     src/gameplay/Projectile.cpp
     src/gameplay/ScoreManager.cpp
     src/gameplay/WaveManager.cpp
+    src/persistence/HighScore.cpp
 )
 target_include_directories(galaxian_core PUBLIC src)
 target_link_libraries(galaxian_core PUBLIC
