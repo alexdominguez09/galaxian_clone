@@ -65,6 +65,7 @@ add_library(galaxian_core STATIC
     src/gameplay/EnemyFormation.cpp
     src/gameplay/Player.cpp
     src/gameplay/Projectile.cpp
+    src/gameplay/RunStats.cpp
     src/gameplay/ScoreManager.cpp
     src/gameplay/WaveManager.cpp
     src/persistence/HighScore.cpp

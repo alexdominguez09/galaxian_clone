@@ -258,3 +258,9 @@ subdirectories are introduced as their subsystems land in later stages.)
   gameplay behavior.
 - Every stage has automated unit tests for logic plus a manual acceptance
   checklist (see `test_plan.md`).
+
+## Revision notes
+
+- Stage 23 (balancing): §14 defaults reviewed against measured playtest
+  sessions (see docs/playtest_log.md) and kept unchanged; all future
+  tuning goes through assets/config/game.json only.

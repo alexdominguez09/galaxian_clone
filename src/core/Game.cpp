@@ -50,6 +50,8 @@ void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
         game->audio_.playSound(SoundId::GameStart);
         game->audio_.playMusic(MusicId::Gameplay);  // loops for the run
     } else if (to == GameStateId::GameOver) {
+        std::fprintf(stderr, "%s\n",
+                     game->stats_.summaryLine().c_str());
         game->audio_.stopMusic();
         game->audio_.playSound(SoundId::GameOver);
         // Stage 22: the run just ended — persist immediately so even a
@@ -78,6 +80,7 @@ void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
 
 void Game::startNewGame()
 {
+    stats_.reset();
     score_.reset();
     player_.resetGame();
     formation_.reset();
@@ -341,6 +344,7 @@ void Game::fixedUpdate(double dt)
             if (projectiles_.tryFirePlayer(player_)) {
                 std::printf("Player fired\n");
                 audio_.playSound(SoundId::PlayerFire);
+                ++stats_.shotsFired;
             }
         }
     }
@@ -401,8 +405,11 @@ void Game::fixedUpdate(double dt)
     // runs after both move so it sees their new positions): a hit
     // kills the enemy, consumes the bullet, awards the type's base points
     // through the ScoreManager, and spawns a placeholder effect.
-    if (combat::resolvePlayerBullets(projectiles_, formation_, score_,
-                                     effects_) > 0) {
+    if (const int killed =
+            combat::resolvePlayerBullets(projectiles_, formation_, score_,
+                                         effects_);
+        killed > 0) {
+        stats_.enemiesKilled += killed;
         audio_.playSound(SoundId::EnemyDestroyed);
     }
 
@@ -410,6 +417,7 @@ void Game::fixedUpdate(double dt)
     // (gameplay/Combat). Exactly one life per step; a hit starts the
     // 1.5 s Dying phase with a placeholder destruction effect.
     if (combat::resolveEnemyThreats(projectiles_, formation_, player_) != 0) {
+        ++stats_.playerDeaths;
         std::printf("Player destroyed (%d lives left)\n", player_.lives());
         audio_.playSound(SoundId::PlayerDestroyed);
         effects_.add(player_.bounds().position(), Player::kWidth,
@@ -445,6 +453,7 @@ void Game::fixedUpdate(double dt)
         std::printf("Wave %d cleared\n", waves_.wave());
     } else if (waveEvent == WaveManager::Event::WaveAdvanced) {
         std::printf("Wave %d begins\n", waves_.wave());
+        stats_.wavesReached = waves_.wave();
         audio_.playSound(SoundId::WaveStart);
     }
 
@@ -457,6 +466,8 @@ void Game::fixedUpdate(double dt)
     // simTime_ must equal updateCount_ * dt at all times.
     ++updateCount_;
     simTime_ += dt;
+    // Stage 23 telemetry: simulated run seconds.
+    stats_.runTimeSeconds += dt;
 }
 
 void Game::render()
@@ -701,6 +712,10 @@ void Game::reportStats()
 void Game::shutdown()
 {
     if (initialized_) {
+        // Stage 23: emit the run telemetry on any exit while a run was up.
+        if (states_.current() == GameStateId::Playing) {
+            std::fprintf(stderr, "%s\n", stats_.summaryLine().c_str());
+        }
         // Stage 22: persist the session best on every clean exit (the
         // GameOver transition already saved; this covers quitting mid-run).
         highScoreStore_.save(score_.highScore());

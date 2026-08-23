@@ -196,10 +196,10 @@ Manual:
 - [ ] Directory auto-created if absent
 
 ### Stage 23 — Balancing
-- [ ] 3+ structured playtest sessions logged (survival time, accuracy,
+- [x] 3+ structured playtest sessions logged (survival time, accuracy,
       deaths, waves reached)
-- [ ] No fundamental mechanic changes required (only numeric tuning)
-- [ ] Values written back into game.json + spec revision note
+- [x] No fundamental mechanic changes required (only numeric tuning)
+- [x] Values written back into game.json + spec revision note
 
 ### Stage 24 — Visual polish
 - [ ] All prototype sprites replaced; palette consistent

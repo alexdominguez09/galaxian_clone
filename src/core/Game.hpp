@@ -11,6 +11,7 @@
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
+#include "gameplay/RunStats.hpp"
 #include "gameplay/WaveManager.hpp"
 #include "graphics/Animation.hpp"
 #include "states/StateMachine.hpp"
@@ -216,6 +217,8 @@ private:
     // Stage 17: the top-level state machine (spec §10 graph, validated
     // transitions; the callback runs the enter/exit bookkeeping).
     StateMachine states_;
+    // Stage 23 balancing telemetry (pure POD; never affects simulation).
+    RunStats stats_;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this
