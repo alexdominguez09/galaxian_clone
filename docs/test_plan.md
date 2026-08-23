@@ -227,9 +227,17 @@ Manual:
 > verification only.
 
 ### Stage 26 — Final regression
-Full checklist (see §2 below) on GCC + Clang, Debug + Release,
-windowed + fullscreen, with and without audio device, fresh install
-(no config/save files), multiple resolutions.
+- [x] Formal checklist created: `docs/regression_checklist.md` (every spec §2
+      requirement mapped to automated test(s) + manual step; build matrix;
+      headless edge-case commands)
+- [x] All four build variants pass the full suite (GCC Debug/Release, Clang,
+      ASan+UBSan — 204/204 each, 0 warnings)
+- [x] Headless edge cases: fresh install, missing config → defaults, corrupt
+      save → 0, no audio device, long session telemetry
+- [ ] Manual regression pass on a real display (see regression_checklist.md
+      §1; human-executed)
+
+Full v1.0 checklist: `docs/regression_checklist.md` (also §2 below).
 
 ## 2. v1.0 Regression Checklist (Stage 26)
 

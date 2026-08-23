@@ -14,7 +14,7 @@ namespace {
 constexpr float kPipWidth = 10.0f;
 constexpr float kPipSpacing = 14.0f;
 constexpr float kPipBaseX = 16.0f;
-constexpr float kPipY = 538.0f;  // above the help line (y 552)
+constexpr float kPipY = 538.0f;  // bottom-left, clear of the gameplay
 
 }  // namespace
 

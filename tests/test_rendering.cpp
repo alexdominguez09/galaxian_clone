@@ -544,7 +544,8 @@ TEST_CASE("dev scene: renders the pure backdrop", "[rendering]")
         }
     }
     CHECK(titleLit == 0);
-    // The controls help line still renders at the bottom.
+    // v1.0 (Stage 26): the dev controls help line is removed from the play
+    // screen -- the bottom strip is plain black.
     int helpLit = 0;
     for (int y = 552; y < 570; ++y) {
         for (int x = 16; x < 400; ++x) {
@@ -553,7 +554,7 @@ TEST_CASE("dev scene: renders the pure backdrop", "[rendering]")
             }
         }
     }
-    CHECK(helpLit > 50);
+    CHECK(helpLit == 0);
     SDL_FreeSurface(frame);
     renderer.shutdown();
 }
