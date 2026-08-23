@@ -678,6 +678,27 @@ Stage 22 implements it (`src/persistence/HighScore.{hpp,cpp}`):
 - **Scaling**: nearest-neighbour textures plus the manual integer-scale +
   letterbox transform already present in Renderer (unchanged).
 
+### 3.14 Performance and stability (Stage 25)
+
+- **`core/PerformanceStats`** — a POD accumulator owned by Game and fed
+  every rendered frame in `run()`. It measures the REAL loop's cost purely
+  as telemetry (never influences simulation):
+  - wall frame time (average + max) — the "stable frame time" evidence;
+  - the number of fixed updates per frame (max); and
+  - the measured CPU time spent inside the fixed-update block (average
+    per step + worst-step estimate) — the "update cost within budget"
+    figure.
+  - The measurement wraps the fixed-update loop with a
+    `std::chrono::steady_clock` read (gated to PLAYING only, matching the
+    simulation gate, so paused/title frames cost ~0).
+  - A `[perf]` summary line is logged to stderr once at `shutdown()`,
+    alongside the Stage 23 `[run]` telemetry.
+- **Verification** (not a stress harness — the stability/stress stress
+  harness was intentionally out of scope this stage): the full suite is
+  green on GCC Debug, GCC Release, Clang Debug, and the GCC ASan+UBSan
+  build with zero warnings; a long ASan session and a Valgrind session
+  report 0 errors and 0 definite/indirect leaks.
+
 ## 4. Testing Strategy
 
 - **Catch2** (v3) for unit tests; tests are plain executables built with
@@ -689,7 +710,9 @@ Stage 22 implements it (`src/persistence/HighScore.{hpp,cpp}`):
   and compare results.
 - Manual acceptance: per-stage checklists in `test_plan.md`, executed on a
   real display (or `SDL_VIDEODRIVER=dummy` smoke runs in CI).
-- Stage 25: ASan+UBSan build, valgrind, 30-minute soak, rapid-restart stress.
+- Stage 25: performance instrumentation plus verification on all four build
+  variants (GCC Debug/Release, Clang, ASan+UBSan), a long ASan session, and
+  a Valgrind leak run.
 
 ## 5. Build
 

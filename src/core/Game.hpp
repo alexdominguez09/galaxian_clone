@@ -4,6 +4,7 @@
 
 #include "Constants.hpp"
 #include "GameClock.hpp"
+#include "PerformanceStats.hpp"
 #include "TimestepController.hpp"
 #include "gameplay/AttackDirector.hpp"
 #include "gameplay/Effects.hpp"
@@ -131,6 +132,11 @@ public:
     double smokeResultSimTime() const { return simTime_; }
     double smokeResultWallTime() const { return wallTime_; }
 
+    // Stage 25: the measured real-loop performance (docs/test_plan.md). A
+    // POD fed every frame in run(); the `[perf]` summary is logged once at
+    // shutdown. Never affects simulation.
+    const PerformanceStats& perf() const { return perf_; }
+
 private:
     void processEvents();
     // Stage 17 state-machine callback: enter/exit bookkeeping per the
@@ -220,6 +226,8 @@ private:
     StateMachine states_;
     // Stage 23 balancing telemetry (pure POD; never affects simulation).
     RunStats stats_;
+    // Stage 25 performance telemetry (pure POD; never affects simulation).
+    PerformanceStats perf_;
     // Stage 24 cosmetics: drifting starfield, one-frame muzzle flash, and
     // the row-by-row formation reveal used as the wave transition effect.
     graphics::Starfield starfield_;

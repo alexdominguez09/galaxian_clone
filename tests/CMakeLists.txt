@@ -53,6 +53,7 @@ add_executable(galaxian_tests
     test_game_states.cpp
     test_high_score.cpp
     test_wave_manager.cpp
+    test_perf_stats.cpp
 )
 target_link_libraries(galaxian_tests PRIVATE
     galaxian_core

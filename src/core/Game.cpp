@@ -1,5 +1,6 @@
 #include "Game.hpp"
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -196,6 +197,9 @@ void Game::run()
         starfield_.update(frameDelta);
 
         const int steps = timestep_.advance(frameDelta);
+        // Stage 25: measure the CPU cost of this frame's fixed updates
+        // (perf telemetry; never affects simulation).
+        const auto perfStart = std::chrono::steady_clock::now();
         // Stage 17: ONLY PLAYING simulates. Paused freezes the scene
         // entirely (the timestep keeps draining so a resume never
         // fast-forwards); Title/GameOver have no simulation at all.
@@ -205,6 +209,10 @@ void Game::run()
             }
             updatesSinceReport_ += steps;
         }
+        const auto perfEnd = std::chrono::steady_clock::now();
+        const double updateCostSeconds =
+            std::chrono::duration<double>(perfEnd - perfStart).count();
+        perf_.recordFrame(frameDelta, steps, updateCostSeconds);
 
         // Dev scene (text, static bullet rectangles, border). The Stage 4
         // input demo that moved a stand-in player is gone: the real Player
@@ -820,6 +828,11 @@ void Game::shutdown()
         // Stage 23: emit the run telemetry on any exit while a run was up.
         if (states_.current() == GameStateId::Playing) {
             std::fprintf(stderr, "%s\n", stats_.summaryLine().c_str());
+        }
+        // Stage 25: emit the session performance summary (update cost
+        // within budget, stable frame time) once per process.
+        if (perf_.frames > 0) {
+            std::fprintf(stderr, "%s\n", perf_.summaryLine().c_str());
         }
         // Stage 22: persist the session best on every clean exit (the
         // GameOver transition already saved; this covers quitting mid-run).

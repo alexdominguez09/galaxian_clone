@@ -43,6 +43,7 @@ add_library(galaxian_core STATIC
     src/audio/AudioManager.cpp
     src/core/GameClock.cpp
     src/core/GameConfig.cpp
+    src/core/PerformanceStats.cpp
     src/core/TimestepController.cpp
     src/core/Game.cpp
     src/states/GameState.cpp
