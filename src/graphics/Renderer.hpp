@@ -54,6 +54,11 @@ public:
     void drawText(const std::string& text, const Vector2& position,
                   const Color& color, int fontSize = 16);
 
+    // Width of `text` at `fontSize` in logical pixels (for centering text,
+    // e.g. title prompts). Returns 0 if no font is loaded or measurement
+    // fails. `fontSize` defaults to the base 16 px size.
+    int textWidth(const std::string& text, int fontSize = 16);
+
     void present();
 
     int logicalWidth() const { return logicalWidth_; }

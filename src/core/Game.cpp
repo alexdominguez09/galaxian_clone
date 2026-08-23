@@ -513,34 +513,49 @@ void Game::renderTitle()
     devScene_.draw(renderer_);
     starfield_.draw(renderer_);
 
-    // Stage 24 artwork: an honour guard of the three alien types flanking
-    // the title, the player ship below the prompt.
+    const float centerX = renderer_.logicalWidth() / 2.0f;
+
+    // Stage 24b: the arcade "GALAXIAN CLONE" title logo (green-gradient
+    // pixel art), centred at the top.
+    const Texture* logo = renderer_.texture(DevArt::kTitleLogo);
+    if (logo != nullptr) {
+        renderer_.drawSprite(*logo,
+                             {centerX - logo->width() / 2.0f, 116.0f});
+    }
+
+    // An honour guard of the three alien types below the title (scout left,
+    // guard centre, commander right).
     const Texture* scout = renderer_.texture(DevArt::kEnemyScoutA);
     const Texture* guard = renderer_.texture(DevArt::kEnemyGuardA);
     const Texture* cmdr = renderer_.texture(DevArt::kEnemyCommanderA);
-    const Texture* ship = renderer_.texture(DevArt::kPlayerIdleB);
     if (scout != nullptr) {
-        renderer_.drawSprite(*scout, {88.0f, 120.0f});
+        renderer_.drawSprite(*scout, {112.0f, 200.0f});
     }
     if (guard != nullptr) {
-        renderer_.drawSprite(*guard, {212.0f, 112.0f});
+        renderer_.drawSprite(*guard, {224.0f, 190.0f});
     }
     if (cmdr != nullptr) {
-        renderer_.drawSprite(*cmdr, {336.0f, 120.0f});
-    }
-    if (ship != nullptr) {
-        renderer_.drawSprite(*ship, {212.0f, 410.0f});
+        renderer_.drawSprite(*cmdr, {336.0f, 200.0f});
     }
 
-    renderer_.drawText("GALAXIAN CLONE", {118.0f, 176.0f}, colors::kWhite,
-                       24);
     char hudLine[32];
     std::snprintf(hudLine, sizeof(hudLine), "HIGH SCORE %06d",
                   score_.highScore());
-    renderer_.drawText(hudLine, {138.0f, 236.0f}, colors::kGreen);
-    renderer_.drawText("PRESS ENTER TO START", {122.0f, 320.0f},
+    renderer_.drawText(hudLine,
+                       {centerX - renderer_.textWidth(hudLine) / 2.0f,
+                        262.0f},
+                       colors::kGreen);
+
+    const char* startMsg = "PRESS ENTER TO START";
+    renderer_.drawText(startMsg,
+                       {centerX - renderer_.textWidth(startMsg, 24) / 2.0f,
+                        330.0f},
                        colors::kWhite, 24);
-    renderer_.drawText("ESC QUITS", {192.0f, 380.0f}, colors::kBorder);
+
+    const char* escMsg = "ESC QUITS";
+    renderer_.drawText(escMsg,
+                       {centerX - renderer_.textWidth(escMsg) / 2.0f, 390.0f},
+                       colors::kBorder);
     renderer_.present();
 }
 
@@ -553,7 +568,13 @@ void Game::renderGameOver()
     renderer_.drawText(line, {150.0f, 260.0f}, colors::kGreen);
     std::snprintf(line, sizeof(line), "REACHED WAVE %d", waves_.wave());
     renderer_.drawText(line, {158.0f, 284.0f}, colors::kGreen);
-    renderer_.drawText("PRESS ENTER", {166.0f, 340.0f}, colors::kWhite, 24);
+    const char* prompt = "PRESS ENTER";
+    renderer_.drawText(prompt,
+                       {(renderer_.logicalWidth() -
+                         renderer_.textWidth(prompt, 24)) /
+                            2.0f,
+                        340.0f},
+                       colors::kWhite, 24);
     renderer_.present();
 }
 

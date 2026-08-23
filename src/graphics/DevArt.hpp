@@ -53,6 +53,10 @@ inline constexpr const char* kPlayerExplosionB = "dev:player_explosion_b";
 inline constexpr const char* kPlayerExplosionC = "dev:player_explosion_c";
 inline constexpr const char* kPlayerExplosionD = "dev:player_explosion_d";
 
+// The arcade title logo "GALAXIAN CLONE" — green-gradient pixel art in a
+// blocky 5x7 arcade font, drawn on the Title screen (Stage 24b).
+inline constexpr const char* kTitleLogo = "dev:title_logo";
+
 // Creates all dev textures in the renderer's cache. Idempotent.
 // Returns false if creation fails.
 bool createAll(Renderer& renderer);

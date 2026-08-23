@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -566,6 +568,77 @@ void stampPlayerBurst(SDL_Surface* s, int frame)
     }
 }
 
+// ---- Stage 24b: "GALAXIAN CLONE" title logo ----------------------------
+//
+// A blocky 5x7 arcade pixel font composed into the full title, stamped at
+// 4x scale with a vertical GREEN GRADIENT (bright at the top, darker at the
+// bottom) — after the classic Galaxian title screen reference. The letters
+// stay transparent-backed so they read over the black + starfield backdrop.
+constexpr int kLogoScale = 4;    // each font pixel becomes a 4x4 block
+constexpr int kGlyphW = 5;
+constexpr int kGlyphH = 7;
+constexpr int kGlyphPitch = 6;   // 5 wide + 1px spacing
+
+// The 5x7 green gradient bands (top -> bottom).
+const Color kTitleGradient[kGlyphH] = {
+    {180, 255, 120},  // bright lime
+    {160, 250, 115},
+    {140, 245, 110},
+    {120, 240, 100},
+    {100, 235, 90},
+    {80, 225, 80},
+    {60, 210, 70},    // darker green
+};
+
+// 5x7 glyphs for the letters in "GALAXIAN CLONE". 'X' = lit pixel.
+const std::map<char, std::vector<std::string>> kLogoFont = {
+    {'A', {".XXX.", "X...X", "X...X", "XXXXX", "X...X", "X...X", "X...X"}},
+    {'C', {".XXX.", "X...X", "X....", "X....", "X....", "X...X", ".XXX."}},
+    {'E', {"XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "XXXXX"}},
+    {'G', {".XXX.", "X...X", "X....", "X.XXX", "X...X", "X...X", ".XXX."}},
+    {'I', {"XXXXX", "..X..", "..X..", "..X..", "..X..", "..X..", "XXXXX"}},
+    {'L', {"X....", "X....", "X....", "X....", "X....", "X....", "XXXXX"}},
+    {'N', {"X...X", "XX..X", "X.X.X", "X..XX", "X...X", "X...X", "X...X"}},
+    {'O', {".XXX.", "X...X", "X...X", "X...X", "X...X", "X...X", ".XXX."}},
+    {'X', {"X...X", "X...X", ".X.X.", "..X..", ".X.X.", "X...X", "X...X"}},
+    {' ', {".....", ".....", ".....", ".....", ".....", ".....", "....."}},
+};
+
+// Stamps "GALAXIAN CLONE" into `s`, which must be sized by the caller with
+// stampTitleLogoWidth/Height.
+void stampTitleLogo(SDL_Surface* s)
+{
+    const char* text = "GALAXIAN CLONE";
+    const int len = static_cast<int>(std::strlen(text));
+    for (int i = 0; i < len; ++i) {
+        auto it = kLogoFont.find(text[i]);
+        const std::vector<std::string>* glyph =
+            it != kLogoFont.end() ? &it->second : nullptr;
+        for (int fy = 0; fy < kGlyphH; ++fy) {
+            const Color& col = kTitleGradient[fy];
+            for (int fx = 0; fx < kGlyphW; ++fx) {
+                const bool on =
+                    glyph != nullptr && fy < static_cast<int>(glyph->size()) &&
+                    fx < static_cast<int>((*glyph)[fy].size()) &&
+                    (*glyph)[fy][fx] == 'X';
+                if (!on) {
+                    continue;
+                }
+                const int px = (i * kGlyphPitch + fx) * kLogoScale;
+                const int py = fy * kLogoScale;
+                for (int dy = 0; dy < kLogoScale; ++dy) {
+                    for (int dx = 0; dx < kLogoScale; ++dx) {
+                        setPixel(s, px + dx, py + dy, col);
+                    }
+                }
+            }
+        }
+    }
+}
+
+int titleLogoWidth() { return kLogoScale * (14 * kGlyphPitch - 1); }  // 332
+int titleLogoHeight() { return kLogoScale * kGlyphH; }                 // 28
+
 Texture toTexture(SDL_Renderer* renderer, SDL_Surface* surface)
 {
     Texture result;
@@ -670,6 +743,13 @@ bool createAll(Renderer& renderer)
         SDL_Surface* s = makeSurface(4, 10);
         fillSquare(s, colors::kBullet, colors::kBullet);
         renderer.registerTexture(kBullet, toTexture(renderer.sdlRenderer(), s));
+    }
+
+    // Title logo: "GALAXIAN CLONE" green-gradient pixel art.
+    {
+        SDL_Surface* s = makeSurface(titleLogoWidth(), titleLogoHeight());
+        stampTitleLogo(s);
+        renderer.registerTexture(kTitleLogo, toTexture(renderer.sdlRenderer(), s));
     }
 
     // Explosions: 32x32 per frame, drawn CENTRED on the gameplay effect

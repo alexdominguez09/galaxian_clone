@@ -352,6 +352,23 @@ void Renderer::drawText(const std::string& text, const Vector2& position,
     SDL_RenderCopy(renderer_, texture->handle(), nullptr, &dst);
 }
 
+int Renderer::textWidth(const std::string& text, int fontSize)
+{
+    if (!initialized_ || font_ == nullptr || text.empty() || fontSize < 8) {
+        return 0;
+    }
+    TTF_Font* font = fontForSize(fontSize);
+    if (font == nullptr) {
+        return 0;
+    }
+    int w = 0;
+    int h = 0;
+    if (TTF_SizeUTF8(font, text.c_str(), &w, &h) == 0) {
+        return w;
+    }
+    return 0;
+}
+
 void Renderer::present()
 {
     if (initialized_) {
