@@ -29,6 +29,7 @@
 #include "gameplay/ScoreManager.hpp"
 #include "graphics/Animation.hpp"
 #include "graphics/Hud.hpp"
+#include "graphics/Starfield.hpp"
 #include "states/GameState.hpp"
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
@@ -663,9 +664,10 @@ TEST_CASE("hud: the playfield carries the top bar; the title does not",
     game.shutdown();
 }
 
-// Stage 19 end-to-end: every explosion frame is a distinct 24x24 image,
-// and the player idle flicker alternates between two visibly different
-// frames while keeping the cyan ship body.
+// Stage 19/24 end-to-end: every explosion frame is a distinct 32x32 image
+// (thin-ray starburst, drawn centred on the effect box by Game), and the
+// player idle flicker alternates between hull and lit thruster while the
+// scout idle flaps its wings.
 TEST_CASE("animation: explosion and idle frames render distinctly",
           "[animation][rendering][sdl]")
 {
@@ -675,8 +677,8 @@ TEST_CASE("animation: explosion and idle frames render distinctly",
     REQUIRE(DevArt::createAll(renderer));
 
     // Explosion: draw each frame of the production clip at a fixed spot
-    // and count its lit pixels inside the 24x24 box -- all four frames are
-    // distinct images (core / bloom / ring / embers).
+    // and count its lit pixels inside the 32x32 sprite -- all four frames
+    // are distinct images (flash / burst / broken rays / embers).
     int lit[4] = {};
     for (int f = 0; f < kExplosionClip.frameCount(); ++f) {
         renderer.clear(colors::kBlack);
@@ -687,8 +689,8 @@ TEST_CASE("animation: explosion and idle frames render distinctly",
         renderer.present();
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        for (int y = 100; y < 124; ++y) {
-            for (int x = 100; x < 124; ++x) {
+        for (int y = 100; y < 132; ++y) {
+            for (int x = 100; x < 132; ++x) {
                 if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
                     ++lit[f];
                 }
@@ -701,8 +703,8 @@ TEST_CASE("animation: explosion and idle frames render distinctly",
     CHECK(lit[2] != lit[3]);
     CHECK(lit[0] > 0);  // something actually drew
 
-    // Player idle: frame A is the plain triangle; frame B adds the bright
-    // thruster notch (kBullet yellow) at the base centre.
+    // Player idle: frame A idles with the small pilot flame; frame B
+    // lights the wide thruster bar (kPlayerCyan) at the base centre.
     Animator player;
     player.play(kPlayerIdleClip);
     auto thrusterColor = [&]() {
@@ -711,18 +713,19 @@ TEST_CASE("animation: explosion and idle frames render distinctly",
         renderer.present();
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        const std::uint32_t p = pixelAt(frame, 211, 214);
+        const std::uint32_t p = pixelAt(frame, 207, 215);
         SDL_FreeSurface(frame);
         return p;
     };
     CHECK(player.frame() == 0);
-    CHECK(isColor(thrusterColor(), colors::kBullet) == false);  // A: body
+    // A: the flame bar starts at x9 -- (207,215) is still background.
+    CHECK(isColor(thrusterColor(), colors::kPlayerCyan) == false);
     player.update(0.20);  // cross the frame boundary
     CHECK(player.frame() == 1);
-    CHECK(isColor(thrusterColor(), colors::kBullet));           // B: flame
+    // B: the wide thruster bar covers x7..16 -- the sample pixel is flame.
+    CHECK(isColor(thrusterColor(), colors::kPlayerCyan));
 
-    // Enemy idle: the type colour stays on BOTH frames; only the core
-    // blinks white.
+    // Enemy idle: the type colour stays on BOTH frames; the wings flap.
     Animator scout;
     scout.play(kScoutIdleClip);
     auto scoutPixel = [&](int x, int y) {
@@ -735,22 +738,26 @@ TEST_CASE("animation: explosion and idle frames render distinctly",
         SDL_FreeSurface(frame);
         return p;
     };
-    CHECK(scoutPixel(302, 302) ==
+    // Body pixel (local (9,10)) is the teal drone colour on frame A.
+    CHECK(scoutPixel(309, 310) ==
           static_cast<std::uint32_t>(
-              (255u << 24) | (colors::kEnemyGreen.r << 16) |
-              (colors::kEnemyGreen.g << 8) | colors::kEnemyGreen.b));
+              (255u << 24) | (colors::kEnemyCyan.r << 16) |
+              (colors::kEnemyCyan.g << 8) | colors::kEnemyCyan.b));
     scout.update(0.30);
     CHECK(scout.frame() == 1);
-    // The core pixel blinks white on frame B (anything but background).
-    CHECK(isColor(scoutPixel(310, 310), colors::kBlack) == false);
+    // The wing tip (local (2,12)) is raised on frame B: blue where frame A
+    // was background.
+    CHECK(isColor(scoutPixel(302, 312), colors::kBlack) == false);
+    CHECK(isColor(scoutPixel(302, 312), colors::kEnemyBlue));
 
     renderer.shutdown();
 }
 
-// Stage 8 (docs/test_plan.md, Stage 8): the real gameplay formation renders
-// as the 5x8 spec grid — Commander row red, Guard rows yellow, Scout rows
-// green — at the exact spec coordinates, with the spec 48/36 px spacing
-// (verified by the gaps between boxes). Pixel-verified headlessly.
+// Stage 8 (docs/test_plan.md, Stage 8) with the Stage 24 pixel art: the
+// real gameplay formation renders as the 5x8 spec grid — Commander row
+// yellow (flagship), Guard rows red (escorts), Scout rows teal (drones) —
+// at the exact spec coordinates, with the spec 48/36 px spacing (verified
+// by the gaps between boxes). Pixel-verified headlessly.
 TEST_CASE("enemy formation: renders the 40-enemy grid at spec coordinates",
           "[enemy][formation][rendering][sdl]")
 {
@@ -774,16 +781,17 @@ TEST_CASE("enemy formation: renders the 40-enemy grid at spec coordinates",
     SDL_Surface* frame = readback(renderer.sdlRenderer());
     REQUIRE(frame != nullptr);
     // Column-0 centers, one per row (box centers: x = 44, y = 76 + 36r).
-    CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));     // row 0
-    CHECK(isColor(pixelAt(frame, 44, 112), colors::kEnemyYellow)); // row 1
-    CHECK(isColor(pixelAt(frame, 44, 148), colors::kEnemyYellow)); // row 2
-    CHECK(isColor(pixelAt(frame, 44, 184), colors::kEnemyGreen));  // row 3
-    CHECK(isColor(pixelAt(frame, 44, 220), colors::kEnemyGreen));  // row 4
+    // The centre seam pixel is each bug's body colour (Stage 24 art).
+    CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));  // row 0
+    CHECK(isColor(pixelAt(frame, 44, 112), colors::kEnemyRed));    // row 1
+    CHECK(isColor(pixelAt(frame, 44, 148), colors::kEnemyRed));    // row 2
+    CHECK(isColor(pixelAt(frame, 44, 184), colors::kEnemyCyan));   // row 3
+    CHECK(isColor(pixelAt(frame, 44, 220), colors::kEnemyCyan));   // row 4
     // Corners of the grid (center x of col 7 is 380).
-    CHECK(isColor(pixelAt(frame, 380, 76), colors::kEnemyRed));    // row 0
-    CHECK(isColor(pixelAt(frame, 380, 220), colors::kEnemyGreen)); // row 4
+    CHECK(isColor(pixelAt(frame, 380, 76), colors::kEnemyYellow)); // row 0
+    CHECK(isColor(pixelAt(frame, 380, 220), colors::kEnemyCyan));  // row 4
     // Middle of the grid (col 4 center x = 236).
-    CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyGreen)); // row 4
+    CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyCyan));  // row 4
     // Spec spacing: the gaps between adjacent boxes are background.
     // Column gap: col 0 ends at x=56, col 1 starts at x=80 -> x=68 empty.
     CHECK(isColor(pixelAt(frame, 68, 76), colors::kBlack));
@@ -869,13 +877,15 @@ TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
         renderer.present();
     };
 
-    // Initial: player centered at (224, 528); the triangle base pixel
-    // (224, 535) is cyan.
+    // Initial: player centered at (224, 528); the fighter's centre spine
+    // pixel (224, 526) is the red stripe (Stage 24 art), the wing (216,
+    // 531) cyan.
     drawFrame();
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        CHECK(isColor(pixelAt(frame, 224, 526), colors::kPlayerStripe));
+        CHECK(isColor(pixelAt(frame, 216, 531), colors::kPlayerCyan));
         SDL_FreeSurface(frame);
     }
 
@@ -890,9 +900,9 @@ TEST_CASE("player: input drives the real Player (movement + fire, pixels)",
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
         // The original center is no longer the player (it moved left)...
-        CHECK_FALSE(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
-        // ...and the new position (~x=187) is.
-        CHECK(isColor(pixelAt(frame, 187, 535), colors::kPlayerCyan));
+        CHECK_FALSE(isColor(pixelAt(frame, 224, 526), colors::kPlayerStripe));
+        // ...and the new position (~x=187) shows the red spine again.
+        CHECK(isColor(pixelAt(frame, 187, 526), colors::kPlayerStripe));
         SDL_FreeSurface(frame);
     }
 
@@ -1101,12 +1111,12 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        CHECK(isColor(pixelAt(frame, 224, 526), colors::kPlayerStripe));
         CHECK_FALSE(isColor(pixelAt(frame, 212, 520), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 235, 535), colors::kDebugBox));
         // Stage 8: the formation renders (row 0 col 0 center is the
         // Commander red) and its boxes are not outlined yet.
-        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));
         CHECK_FALSE(isColor(pixelAt(frame, 32, 64), colors::kDebugBox));
         CHECK_FALSE(isColor(pixelAt(frame, 55, 87), colors::kDebugBox));
         SDL_FreeSurface(frame);
@@ -1143,7 +1153,7 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         CHECK(isColor(pixelAt(frame, 368, 208), colors::kDebugBox)); // r4c7 TL
         CHECK(isColor(pixelAt(frame, 391, 231), colors::kDebugBox)); // r4c7 BR
         // The box interior is still the sprite (outline only).
-        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));
         SDL_FreeSurface(frame);
     }
 
@@ -1185,9 +1195,9 @@ TEST_CASE("debug overlay: F1 toggles collision boxes aligned with sprites",
         CHECK_FALSE(isColor(pixelAt(frame, 32, 64), colors::kDebugBox));
         // ...and the sprites are back: player base, bullet body, and the
         // formation squares.
-        CHECK(isColor(pixelAt(frame, 224, 535), colors::kPlayerCyan));
+        CHECK(isColor(pixelAt(frame, 224, 526), colors::kPlayerStripe));
         CHECK(isColor(pixelAt(frame, 224, 499), colors::kBullet));
-        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));
         SDL_FreeSurface(frame);
     }
 
@@ -1235,11 +1245,11 @@ TEST_CASE("enemy formation: oscillates smoothly (pixels)",
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
         // Col 0 moved from center x=44 to x=76; col 7 from 380 to 412.
-        CHECK(isColor(pixelAt(frame, 76, 76), colors::kEnemyRed));   // r0c0
-        CHECK(isColor(pixelAt(frame, 412, 76), colors::kEnemyRed));  // r0c7
-        CHECK(isColor(pixelAt(frame, 76, 220), colors::kEnemyGreen)); // r4c0
+        CHECK(isColor(pixelAt(frame, 76, 76), colors::kEnemyYellow));   // r0c0
+        CHECK(isColor(pixelAt(frame, 412, 76), colors::kEnemyYellow));  // r0c7
+        CHECK(isColor(pixelAt(frame, 76, 220), colors::kEnemyCyan)); // r4c0
         // The old spots are background now.
-        CHECK_FALSE(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));
+        CHECK_FALSE(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));
         SDL_FreeSurface(frame);
     }
 
@@ -1252,9 +1262,9 @@ TEST_CASE("enemy formation: oscillates smoothly (pixels)",
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        CHECK(isColor(pixelAt(frame, 12, 76), colors::kEnemyRed));   // r0c0
-        CHECK(isColor(pixelAt(frame, 348, 76), colors::kEnemyRed));  // r0c7
-        CHECK(isColor(pixelAt(frame, 12, 220), colors::kEnemyGreen)); // r4c0
+        CHECK(isColor(pixelAt(frame, 12, 76), colors::kEnemyYellow));   // r0c0
+        CHECK(isColor(pixelAt(frame, 348, 76), colors::kEnemyYellow));  // r0c7
+        CHECK(isColor(pixelAt(frame, 12, 220), colors::kEnemyCyan)); // r4c0
         SDL_FreeSurface(frame);
     }
 
@@ -1337,8 +1347,8 @@ TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
     drawFrame();
     {
         SDL_Surface* frame = readPixels();
-        CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyGreen));  // r4c4
-        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));  // r3c4
+        CHECK(isColor(pixelAt(frame, 236, 220), colors::kEnemyCyan));  // r4c4
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyCyan));  // r3c4
         SDL_FreeSurface(frame);
     }
     CHECK(formation.aliveCount() == 40);
@@ -1367,8 +1377,8 @@ TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
         CHECK(isColor(pixelAt(frame, 236, 220), colors::kEffect));
         CHECK(isColor(pixelAt(frame, 225, 209), colors::kEffect));  // box TL
         // The rest of the formation is untouched.
-        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));  // r3c4
-        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));      // r0c0
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyCyan));  // r3c4
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));      // r0c0
         SDL_FreeSurface(frame);
     }
 
@@ -1383,7 +1393,7 @@ TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
     {
         SDL_Surface* frame = readPixels();
         CHECK(isColor(pixelAt(frame, 236, 220), colors::kBlack));  // the hole
-        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyGreen));
+        CHECK(isColor(pixelAt(frame, 236, 184), colors::kEnemyCyan));
         SDL_FreeSurface(frame);
     }
 
@@ -1411,8 +1421,8 @@ TEST_CASE("combat: player bullets destroy formation enemies (pixels)",
         CHECK(isColor(pixelAt(frame, 236, 184), colors::kEffect));
         CHECK(isColor(pixelAt(frame, 236, 220), colors::kBlack));
         // Neighbors are intact.
-        CHECK(isColor(pixelAt(frame, 188, 184), colors::kEnemyGreen));  // r3c3
-        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyRed));      // r0c0
+        CHECK(isColor(pixelAt(frame, 188, 184), colors::kEnemyCyan));  // r3c3
+        CHECK(isColor(pixelAt(frame, 44, 76), colors::kEnemyYellow));      // r0c0
         SDL_FreeSurface(frame);
     }
 
@@ -1458,11 +1468,12 @@ TEST_CASE("enemy state machine: a diver renders away from its slot "
     {
         SDL_Surface* frame = readback(renderer.sdlRenderer());
         REQUIRE(frame != nullptr);
-        // The diver is drawn at its live position (interior pixels green).
+        // The diver is drawn at its live position (interior pixels are
+        // the teal drone body).
         CHECK(isColor(pixelAt(frame, centerX, boxTop + 12),
-                      colors::kEnemyGreen));
-        CHECK(isColor(pixelAt(frame, centerX - 5, boxTop + 18),
-                      colors::kEnemyGreen));
+                      colors::kEnemyCyan));
+        CHECK(isColor(pixelAt(frame, centerX - 2, boxTop + 13),
+                      colors::kEnemyCyan));
         // Its old slot is plain background now.
         CHECK(isColor(pixelAt(frame, 44, 220), colors::kBlack));
         SDL_FreeSurface(frame);
@@ -1493,6 +1504,42 @@ TEST_CASE("enemy state machine: a diver renders away from its slot "
         CHECK(lit > 10);  // glyphs actually drew something
         SDL_FreeSurface(frame);
     }
+
+    renderer.shutdown();
+}
+
+// Stage 24: the starfield renders deterministic stars on a black backdrop
+// and drifts downward over time.
+TEST_CASE("starfield: draws stars that drift over time",
+          "[starfield][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+
+    graphics::Starfield stars;
+    auto litCount = [&]() {
+        renderer.clear(colors::kBlack);
+        stars.draw(renderer);
+        renderer.present();
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        int lit = 0;
+        for (int y = 100; y < 500; ++y) {
+            for (int x = 100; x < 400; ++x) {
+                if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                    ++lit;
+                }
+            }
+        }
+        SDL_FreeSurface(frame);
+        return lit;
+    };
+
+    const int before = litCount();
+    CHECK(before > 20);   // plenty of stars inside the sampled window
+    stars.update(1.0);    // one second of drift
+    CHECK(litCount() > 20);
 
     renderer.shutdown();
 }

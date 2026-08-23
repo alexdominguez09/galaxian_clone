@@ -16,7 +16,8 @@ constexpr double kEffectEpsilon = 1e-9;
 
 }  // namespace
 
-bool EffectManager::add(Vector2 position, float width, float height)
+bool EffectManager::add(Vector2 position, float width, float height,
+                        int scoreValue, EffectKind kind)
 {
     if (count_ >= kMaxEffects) {
         return false;
@@ -26,6 +27,8 @@ bool EffectManager::add(Vector2 position, float width, float height)
     e.width = width;
     e.height = height;
     e.timeRemaining = GameConfig::get().explosionSeconds;
+    e.scoreValue = scoreValue;
+    e.kind = kind;
     e.active = true;
     return true;
 }

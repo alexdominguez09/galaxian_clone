@@ -85,9 +85,11 @@ TEST_CASE("combat: a bullet hit kills the enemy, consumes the bullet, awards "
     // The type's base points were awarded through the ScoreManager.
     CHECK(score.score() == 50);
     CHECK(score.kills() == 1);
-    // A placeholder destruction effect sits on the enemy's box.
+    // A destruction effect sits on the enemy's box and carries the
+    // awarded points for the Stage 24 score popup.
     CHECK(effects.count() == 1);
     CHECK(effects.effect(0).bounds() == Rect{32.0f, 208.0f, 24.0f, 24.0f});
+    CHECK(effects.effect(0).scoreValue == 50);
     // The other 39 enemies are untouched (the hole stays, spec §6.3).
     CHECK(formation.aliveCount() == 39);
     CHECK(formation.at(3, 0).alive());

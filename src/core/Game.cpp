@@ -11,6 +11,7 @@
 #include "graphics/DebugOverlay.hpp"
 #include "graphics/DevArt.hpp"
 #include "graphics/Hud.hpp"
+#include "graphics/Starfield.hpp"
 #include "states/GameState.hpp"
 
 #include <cstdlib>  // getenv (GALAXIAN_SILENT)
@@ -81,6 +82,7 @@ void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
 void Game::startNewGame()
 {
     stats_.reset();
+    formationRevealRows_ = 0.0f;
     score_.reset();
     player_.resetGame();
     formation_.reset();
@@ -188,6 +190,10 @@ void Game::run()
         // Stage 5: read this frame's input once (before the fixed updates)
         // so the Fire press edge is consumed at most once per frame.
         updateInputState();
+
+        // Stage 24: the starfield is purely cosmetic, so it drifts on the
+        // wall clock even while Paused/Title (keeps screens alive).
+        starfield_.update(frameDelta);
 
         const int steps = timestep_.advance(frameDelta);
         // Stage 17: ONLY PLAYING simulates. Paused freezes the scene
@@ -345,6 +351,7 @@ void Game::fixedUpdate(double dt)
                 std::printf("Player fired\n");
                 audio_.playSound(SoundId::PlayerFire);
                 ++stats_.shotsFired;
+                muzzleFlashSeconds_ = 0.05;
             }
         }
     }
@@ -420,8 +427,10 @@ void Game::fixedUpdate(double dt)
         ++stats_.playerDeaths;
         std::printf("Player destroyed (%d lives left)\n", player_.lives());
         audio_.playSound(SoundId::PlayerDestroyed);
+        // Stage 24: the player's death erupts as the arcade fountain burst
+        // (magenta mound + yellow rays), not the enemy starburst.
         effects_.add(player_.bounds().position(), Player::kWidth,
-                     Player::kHeight);
+                     Player::kHeight, 0, EffectKind::Player);
     }
 
     // Stage 15: the respawn handoff (spec §5) — clear nearby enemy
@@ -442,6 +451,15 @@ void Game::fixedUpdate(double dt)
         animator.update(dt);
     }
     playerAnimator_.update(dt);
+
+    // Stage 24 cosmetics on the visual clock: muzzle-flash decay and the
+    // formation rows flying in after a wave transition.
+    if (muzzleFlashSeconds_ > 0.0) {
+        muzzleFlashSeconds_ -= dt;
+    }
+    if (formationRevealRows_ < 5.0f) {
+        formationRevealRows_ += static_cast<float>(dt) * 12.0f;
+    }
 
     // Stage 16: the wave lifecycle (spec §9) — runs last so the clear
     // detection sees this step's post-combat state. On WaveAdvanced the
@@ -493,6 +511,27 @@ void Game::render()
 void Game::renderTitle()
 {
     devScene_.draw(renderer_);
+    starfield_.draw(renderer_);
+
+    // Stage 24 artwork: an honour guard of the three alien types flanking
+    // the title, the player ship below the prompt.
+    const Texture* scout = renderer_.texture(DevArt::kEnemyScoutA);
+    const Texture* guard = renderer_.texture(DevArt::kEnemyGuardA);
+    const Texture* cmdr = renderer_.texture(DevArt::kEnemyCommanderA);
+    const Texture* ship = renderer_.texture(DevArt::kPlayerIdleB);
+    if (scout != nullptr) {
+        renderer_.drawSprite(*scout, {88.0f, 120.0f});
+    }
+    if (guard != nullptr) {
+        renderer_.drawSprite(*guard, {212.0f, 112.0f});
+    }
+    if (cmdr != nullptr) {
+        renderer_.drawSprite(*cmdr, {336.0f, 120.0f});
+    }
+    if (ship != nullptr) {
+        renderer_.drawSprite(*ship, {212.0f, 410.0f});
+    }
+
     renderer_.drawText("GALAXIAN CLONE", {118.0f, 176.0f}, colors::kWhite,
                        24);
     char hudLine[32];
@@ -524,6 +563,7 @@ void Game::renderPlayfield(bool paused)
     // (The dummy enemies and the Stage 4 action table were removed in
     // Stage 8; see DevScene.)
     devScene_.draw(renderer_);
+    starfield_.draw(renderer_);  // Stage 24: stars over the black backdrop
 
     // Stage 18: the arcade HUD (graphics/Hud) — top bar with SCORE / HIGH
     // / WAVE and the life pips bottom-left. Drawn from live values every
@@ -533,8 +573,10 @@ void Game::renderPlayfield(bool paused)
                                 waves_.wave()});
     hud::drawLivesPips(renderer_, player_.lives());
     if (waves_.interstitial()) {
-        renderer_.drawText("WAVE CLEAR", {168.0f, 272.0f},
-                           colors::kGreen);
+        char bigLine[32];
+        std::snprintf(bigLine, sizeof(bigLine), "WAVE %d", waves_.wave() + 1);
+        renderer_.drawText(bigLine, {176.0f, 264.0f}, colors::kEffect, 32);
+        renderer_.drawText("WAVE CLEAR", {168.0f, 304.0f}, colors::kGreen);
     }
 
     // Stage 8 (state-aware since Stage 11): the enemy formation. The 24x24
@@ -549,6 +591,9 @@ void Game::renderPlayfield(bool paused)
             if (!enemy.alive()) {
                 continue;  // holes stay empty (spec §6.3)
             }
+            if (static_cast<float>(row) >= formationRevealRows_) {
+                continue;  // still flying in from the wave transition
+            }
             // Stage 19: the current idle frame (the animator is graphics-
             // side only; dead slots are simply not drawn, so destruction
             // can never leave a dangling draw).
@@ -557,10 +602,13 @@ void Game::renderPlayfield(bool paused)
         }
     }
 
-    // Stage 9/19: the destruction effects — now the real explosion
-    // animation. Each gameplay effect carries its remaining time; the
-    // frame is progress-mapped onto the 4-frame one-shot clip (whose total
-    // duration equals the effect duration exactly).
+    // Stage 9/19/24: the destruction effects — animated explosions. Each
+    // gameplay effect carries its remaining time, progress-mapped onto the
+    // 4-frame one-shot clips (whose total duration equals the effect
+    // duration exactly). Enemy kills burst as a starburst, the player's
+    // death as the arcade fountain. Both sprites are 32x32 — larger than
+    // the effect box on purpose — and are drawn CENTRED on it so the blast
+    // reads bigger than the ship, like the arcade reference shots.
     for (int i = 0; i < effects_.count(); ++i) {
         const Effect& e = effects_.effect(i);
         double progress =
@@ -571,14 +619,37 @@ void Game::renderPlayfield(bool paused)
         if (progress > 1.0) {
             progress = 1.0;
         }
-        int frame = static_cast<int>(progress * animation::kExplosionClip.frameCount());
-        if (frame >= animation::kExplosionClip.frameCount()) {
-            frame = animation::kExplosionClip.frameCount() - 1;
+        const animation::AnimationClip& clip =
+            e.kind == EffectKind::Player ? animation::kPlayerExplosionClip
+                                         : animation::kExplosionClip;
+        int frame = static_cast<int>(progress * clip.frameCount());
+        if (frame >= clip.frameCount()) {
+            frame = clip.frameCount() - 1;
         }
-        const Texture* tex = renderer_.texture(
-            animation::kExplosionClip.textureId(frame));
+        const Texture* tex = renderer_.texture(clip.textureId(frame));
         if (tex != nullptr) {
-            renderer_.drawSprite(*tex, e.bounds().position());
+            const Rect b = e.bounds();
+            renderer_.drawSprite(
+                *tex, {b.x + b.width * 0.5f - 16.0f,
+                       b.y + b.height * 0.5f - 16.0f});
+        }
+
+        // Stage 24 score popup: "+N" rising above the blast, dimming as it
+        // fades out with the effect itself.
+        if (e.scoreValue > 0) {
+            const double life =
+                1.0 - e.timeRemaining / GameConfig::get().explosionSeconds;
+            const float rise = static_cast<float>(life) * 14.0f;
+            const Color popupColor =
+                life < 0.45 ? colors::kWhite
+                            : (life < 0.8 ? colors::kGreen
+                                          : Color{0, 90, 40});
+            char pop[16];
+            std::snprintf(pop, sizeof(pop), "+%d", e.scoreValue);
+            renderer_.drawText(pop,
+                               {e.bounds().x + 2.0f,
+                                e.bounds().y - 14.0f - rise},
+                               popupColor, 16);
         }
     }
 
@@ -593,6 +664,19 @@ void Game::renderPlayfield(bool paused)
              kInvulnerableBlinkPeriodSeconds * 0.5);
     if (shipVisible) {
         playerAnimator_.draw(renderer_, player_.bounds().position());
+        if (muzzleFlashSeconds_ > 0.0) {
+            // Stage 24: a one-frame muzzle flash as a small PLUS at the
+            // nose (a filled square would read as another debug box).
+            const Rect b = player_.bounds();
+            const float cx = b.x + b.width * 0.5f;
+            const float ny = b.y - 3.0f;
+            renderer_.drawFilledRect({cx - 0.5f, ny - 2.5f, 1.0f, 6.0f},
+                                     colors::kWhite);
+            renderer_.drawFilledRect({cx - 2.5f, ny - 0.5f, 5.0f, 1.0f},
+                                     colors::kWhite);
+            renderer_.drawFilledRect({cx - 0.5f, ny + 2.5f, 1.0f, 1.0f},
+                                     colors::kPlayerCyan);
+        }
     }
 
     // Stage 6: the live projectiles. The 4x10 bullet sprite coincides with

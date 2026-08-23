@@ -103,5 +103,14 @@ inline constexpr const char* kExplosionIds[] = {DevArt::kExplosionA,
 inline constexpr AnimationClip kExplosionClip{kExplosionIds, 4, 0.0625,
                                               false};
 
+// The PLAYER death burst (Stage 24): same one-shot timing as the enemy
+// explosion so Game can progress-map the effect's remaining time onto
+// frames identically.
+inline constexpr const char* kPlayerExplosionIds[] = {
+    DevArt::kPlayerExplosionA, DevArt::kPlayerExplosionB,
+    DevArt::kPlayerExplosionC, DevArt::kPlayerExplosionD};
+inline constexpr AnimationClip kPlayerExplosionClip{kPlayerExplosionIds, 4,
+                                                    0.0625, false};
+
 }  // namespace animation
 }  // namespace galaxian

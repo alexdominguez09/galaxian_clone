@@ -50,6 +50,7 @@ add_library(galaxian_core STATIC
     src/graphics/Animation.cpp
     src/graphics/Texture.cpp
     src/graphics/Renderer.cpp
+    src/graphics/Starfield.cpp
     src/graphics/DebugOverlay.cpp
     src/graphics/DevArt.cpp
     src/graphics/DevScene.cpp

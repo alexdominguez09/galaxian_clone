@@ -45,11 +45,13 @@ int resolvePlayerBullets(ProjectileManager& projectiles,
             if (hitRow >= 0) {
                 Enemy& enemy = formation.at(hitRow, hitCol);
                 enemy.kill();
-                score.addKill(enemy.type());
+                const int awarded = score.addKill(enemy.type());
                 // Placeholder destruction effect at where the enemy ACTUALLY
                 // was (captured before the kill; a diver's true position,
-                // not its empty slot).
-                effects.add(hitBox.position(), Enemy::kWidth, Enemy::kHeight);
+                // not its empty slot). The awarded points ride along for
+                // the Stage 24 score popup.
+                effects.add(hitBox.position(), Enemy::kWidth, Enemy::kHeight,
+                            awarded);
                 // The bullet is consumed on the first hit: it can never
                 // continue on to destroy a second enemy.
                 projectiles.removeAt(i);

@@ -202,9 +202,17 @@ Manual:
 - [x] Values written back into game.json + spec revision note
 
 ### Stage 24 — Visual polish
-- [ ] All prototype sprites replaced; palette consistent
-- [ ] No collision box changed vs Stage 23 (regression: combat tests pass)
-- [ ] Nearest-neighbor scaling, integer scaling at common window sizes
+- [x] All prototype sprites replaced; palette consistent
+- [x] No collision box changed vs Stage 23 (regression: combat tests pass)
+- [x] Nearest-neighbor scaling, integer scaling at common window sizes
+- [x] REWORK after human review: the filled-core explosion "blob" (read as
+      a red/solid square — unnatural, debuggy) was removed. Enemy kills now
+      burst as a thin-ray starburst and the player's death as the arcade
+      fountain (magenta mound + yellow rays), both 32x32 drawn centred on
+      the effect box; sprites redesigned after the reference screenshots in
+      assets/sprites/examples_from_internet (connected mirrored halves,
+      reference palettes). Pixel tests updated to the new art; full suite
+      green on GCC Debug/Release, Clang, ASan+UBSan.
 
 ### Stage 25 — Performance and stability
 - [ ] ASan+UBSan build: 30-minute gameplay session, 0 errors

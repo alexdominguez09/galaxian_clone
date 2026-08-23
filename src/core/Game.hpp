@@ -14,6 +14,7 @@
 #include "gameplay/RunStats.hpp"
 #include "gameplay/WaveManager.hpp"
 #include "graphics/Animation.hpp"
+#include "graphics/Starfield.hpp"
 #include "states/StateMachine.hpp"
 #include "graphics/DevScene.hpp"
 
@@ -219,6 +220,11 @@ private:
     StateMachine states_;
     // Stage 23 balancing telemetry (pure POD; never affects simulation).
     RunStats stats_;
+    // Stage 24 cosmetics: drifting starfield, one-frame muzzle flash, and
+    // the row-by-row formation reveal used as the wave transition effect.
+    graphics::Starfield starfield_;
+    double muzzleFlashSeconds_ = 0.0;
+    float formationRevealRows_ = 5.0f;
     // Per-frame input, read once in updateInputState() and consumed by the
     // fixed updates. pendingDirection_ is the net held movement in {-1,0,+1}
     // (left/right cancel); fireRequested_ is the Fire press edge for this

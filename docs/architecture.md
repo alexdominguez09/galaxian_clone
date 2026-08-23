@@ -637,9 +637,48 @@ Stage 22 implements it (`src/persistence/HighScore.{hpp,cpp}`):
   sizes, grid geometry, the §7 progression shape and its caps.
 - **Tests** mutate and restore the global config safely (guard pattern).
 
+### 3.13 Visual polish (Stage 24)
+
+- **Reference-matched pixel-art sprites** (`graphics/DevArt`): the
+  prototype triangle/squares were replaced by hand-authored bitmaps
+  (mirrored half-row ASCII maps rasterized through a palette forge),
+  designed after the arcade screenshots in
+  `assets/sprites/examples_from_internet`: a 24x16 white fighter with
+  cyan wings and a red spine (player; frame B lights the thruster bar),
+  teal drone bugs with red eyes and segmented blue wings (scouts; frame B
+  raises the wings one notch), red escort bugs with yellow eyes and
+  orange claws (guards; frame B pinches the claws), and the yellow
+  flagship with orange dome and blue wing-tip bars (commanders). Every
+  bitmap row is exactly half the sprite width so the mirrored halves
+  always connect at the centre seam (stampBitmap warns otherwise). All
+  art fits the EXISTING collision boxes; combat/gameplay code is
+  untouched (regression: full suite green).
+- **Limited retro palette**: hull colour per type, wing blue, dark
+  accent, white, hot accent (eyes/spine/dome), plus the starfield grays —
+  no gradients.
+- **Explosions** (Stage 24 rework): thin RAYS and SCATTERED DOTS only —
+  the earlier filled-core "blob" read as a solid square on screen
+  (unnatural, debuggy) and was removed. Enemy kills burst as a 4-frame
+  32x32 starburst (white flash → cyan/white rays → hot broken rays +
+  debris → embers); the player's death erupts as the arcade life-lost
+  fountain (ragged magenta mound, yellow rays fanning upward, coloured
+  debris, drifting embers) per the reference screenshot. Both clips keep
+  the Stage 19 timing (4 × 0.0625 s = the Stage 9 effect duration);
+  `Effect::kind` (`EffectKind::Enemy|Player`) selects the clip, and Game
+  draws the 32x32 sprite CENTRED on the effect box so the blast reads
+  bigger than the ship.
+- **Starfield** (`graphics/Starfield`): three deterministic parallax
+  layers drifting downward; cosmetic-only clock (wall delta) so it stays
+  alive on Title/Paused; drawn behind gameplay and on the title screen.
+- **Presentation extras**: rising "+N" score popups carried by the Stage 9
+  effects (`scoreValue`), a one-frame PLUS-shaped muzzle flash at the
+  ship nose, a row-by-row formation reveal as the wave transition, and
+  the incoming wave number shown during the interstitial. Title screen
+  gained an alien honour-guard composition.
+- **Scaling**: nearest-neighbour textures plus the manual integer-scale +
+  letterbox transform already present in Renderer (unchanged).
+
 ## 4. Testing Strategy
-
-
 
 - **Catch2** (v3) for unit tests; tests are plain executables built with
   CTest (`ctest --test-dir build`).
