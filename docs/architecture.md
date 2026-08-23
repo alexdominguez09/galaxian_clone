@@ -541,6 +541,28 @@ Stage 17 implements it (`src/states/GameState.{hpp,cpp}`,
   validated. Entering `Playing` constructs a fresh `PlayState` (no stale
   entities); `Paused` freezes the same `PlayState` (no re-simulation).
 
+**Stage 19 animation** (`graphics/Animation.{hpp,cpp}`):
+
+- **`AnimationClip`**: immutable frame data — texture ids (static
+  DevArt ids), per-frame duration, loop flag. Pure data.
+- **`Animator`**: plays one clip; a private clock advanced on the fixed
+  simulation step maps time to a frame index. Looping clips wrap modulo
+  the clip duration (the clock stays bounded forever); one-shot clips
+  clamp to the last frame and report `finished()`. SDL-free logic with a
+  thin draw() convenience.
+- **Independence rule** (the plan's core requirement): gameplay logic
+  SELECTS clips ("enemy state = Diving" -> "animation = EnemyDive"), but
+  animation never drives physics — animators live on the graphics side
+  (Game-owned arrays), are advanced inside the Playing-gated fixed step,
+  and nothing in gameplay/ reads them. Bit-exact position equality is
+  unit-tested with and without animator updates interleaved.
+- **Production set**: player idle flicker, three enemy idles (type colour
+  with a blinking white core), and a 4-frame explosion one-shot whose
+  total duration equals the Stage 9 effect duration exactly (4 x 0.0625 =
+  0.25 s) — Game progress-maps each effect's remaining time onto the
+  clip, replacing the placeholder white box one-to-one. Dead entities are
+  simply never drawn, so destruction cannot leave a dangling frame.
+
 ### 3.10 Audio (Stage 20)
 
 - `AudioManager::playSound(SoundId)`, `playMusic(MusicId)`.

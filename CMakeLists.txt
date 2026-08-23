@@ -35,6 +35,7 @@ add_library(galaxian_core STATIC
     src/core/Game.cpp
     src/states/GameState.cpp
     src/states/StateMachine.cpp
+    src/graphics/Animation.cpp
     src/graphics/Texture.cpp
     src/graphics/Renderer.cpp
     src/graphics/DebugOverlay.cpp

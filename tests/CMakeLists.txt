@@ -39,6 +39,7 @@ add_executable(galaxian_tests
     test_projectiles.cpp
     test_collision.cpp
     test_attack_director.cpp
+    test_animation.cpp
     test_dive_path.cpp
     test_enemy_fire.cpp
     test_enemy_formation.cpp

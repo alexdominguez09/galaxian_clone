@@ -171,10 +171,10 @@ Manual:
 - [x] Score popups/flash do not affect score value
 
 ### Stage 19 — Animation
-- [ ] Clip advances at correct rate (frames advanced = sim time × fps)
-- [ ] Looping clips loop; one-shot clips stop at last frame
-- [ ] Animation state does not alter physics (position checks)
-- [ ] Destroyed entity's animation resources released (no dangling draw)
+- [x] Clip advances at correct rate (frames advanced = sim time × fps)
+- [x] Looping clips loop; one-shot clips stop at last frame
+- [x] Animation state does not alter physics (position checks)
+- [x] Destroyed entity's animation resources released (no dangling draw)
 
 ### Stage 20 — Audio
 - [ ] Each SoundId triggers its callback (mock device)

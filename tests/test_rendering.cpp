@@ -27,6 +27,7 @@
 #include "gameplay/Player.hpp"
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
+#include "graphics/Animation.hpp"
 #include "graphics/Hud.hpp"
 #include "states/GameState.hpp"
 #include "graphics/DebugOverlay.hpp"
@@ -37,6 +38,7 @@
 #include "input/InputManager.hpp"
 
 using namespace galaxian;
+using namespace galaxian::animation;
 
 namespace {
 
@@ -659,6 +661,90 @@ TEST_CASE("hud: the playfield carries the top bar; the title does not",
     CHECK(scoreLabelLit() > 10);
 
     game.shutdown();
+}
+
+// Stage 19 end-to-end: every explosion frame is a distinct 24x24 image,
+// and the player idle flicker alternates between two visibly different
+// frames while keeping the cyan ship body.
+TEST_CASE("animation: explosion and idle frames render distinctly",
+          "[animation][rendering][sdl]")
+{
+    useDummyVideoDriver();
+    Renderer renderer;
+    REQUIRE(renderer.initialize(448, 576, false));
+    REQUIRE(DevArt::createAll(renderer));
+
+    // Explosion: draw each frame of the production clip at a fixed spot
+    // and count its lit pixels inside the 24x24 box -- all four frames are
+    // distinct images (core / bloom / ring / embers).
+    int lit[4] = {};
+    for (int f = 0; f < kExplosionClip.frameCount(); ++f) {
+        renderer.clear(colors::kBlack);
+        const Texture* tex =
+            renderer.texture(kExplosionClip.textureId(f));
+        REQUIRE(tex != nullptr);
+        renderer.drawSprite(*tex, {100.0f, 100.0f});
+        renderer.present();
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        for (int y = 100; y < 124; ++y) {
+            for (int x = 100; x < 124; ++x) {
+                if (!isColor(pixelAt(frame, x, y), colors::kBlack)) {
+                    ++lit[f];
+                }
+            }
+        }
+        SDL_FreeSurface(frame);
+    }
+    CHECK(lit[0] != lit[1]);
+    CHECK(lit[1] != lit[2]);
+    CHECK(lit[2] != lit[3]);
+    CHECK(lit[0] > 0);  // something actually drew
+
+    // Player idle: frame A is the plain triangle; frame B adds the bright
+    // thruster notch (kBullet yellow) at the base centre.
+    Animator player;
+    player.play(kPlayerIdleClip);
+    auto thrusterColor = [&]() {
+        renderer.clear(colors::kBlack);
+        player.draw(renderer, {200.0f, 200.0f});
+        renderer.present();
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        const std::uint32_t p = pixelAt(frame, 211, 214);
+        SDL_FreeSurface(frame);
+        return p;
+    };
+    CHECK(player.frame() == 0);
+    CHECK(isColor(thrusterColor(), colors::kBullet) == false);  // A: body
+    player.update(0.20);  // cross the frame boundary
+    CHECK(player.frame() == 1);
+    CHECK(isColor(thrusterColor(), colors::kBullet));           // B: flame
+
+    // Enemy idle: the type colour stays on BOTH frames; only the core
+    // blinks white.
+    Animator scout;
+    scout.play(kScoutIdleClip);
+    auto scoutPixel = [&](int x, int y) {
+        renderer.clear(colors::kBlack);
+        scout.draw(renderer, {300.0f, 300.0f});
+        renderer.present();
+        SDL_Surface* frame = readback(renderer.sdlRenderer());
+        REQUIRE(frame != nullptr);
+        const std::uint32_t p = pixelAt(frame, x, y);
+        SDL_FreeSurface(frame);
+        return p;
+    };
+    CHECK(scoutPixel(302, 302) ==
+          static_cast<std::uint32_t>(
+              (255u << 24) | (colors::kEnemyGreen.r << 16) |
+              (colors::kEnemyGreen.g << 8) | colors::kEnemyGreen.b));
+    scout.update(0.30);
+    CHECK(scout.frame() == 1);
+    // The core pixel blinks white on frame B (anything but background).
+    CHECK(isColor(scoutPixel(310, 310), colors::kBlack) == false);
+
+    renderer.shutdown();
 }
 
 // Stage 8 (docs/test_plan.md, Stage 8): the real gameplay formation renders

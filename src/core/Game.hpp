@@ -12,8 +12,11 @@
 #include "gameplay/Projectile.hpp"
 #include "gameplay/ScoreManager.hpp"
 #include "gameplay/WaveManager.hpp"
+#include "graphics/Animation.hpp"
 #include "states/StateMachine.hpp"
 #include "graphics/DevScene.hpp"
+
+#include <array>
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
 
@@ -177,6 +180,13 @@ private:
     // is a graphics concern kept in the composition root, so gameplay/
     // stays SDL-free.
     const Texture* enemyTextures_[kEnemyTypeCount] = {};
+    // Stage 19: per-entity animators (graphics side only — gameplay stays
+    // SDL-free). Enemies play their type's idle loop; the player its own;
+    // explosions are progress-mapped one-shot frames of the Stage 9
+    // effects.
+    std::array<animation::Animator, EnemyFormation::kTotal> enemyAnimators_ =
+        {};
+    animation::Animator playerAnimator_;
     // Stage 9: the central scoring subsystem (SDL-free). Awarded by
     // gameplay/combat when a player bullet destroys an enemy; shown in the
     // F2 stats overlay (the full HUD lands in Stage 18).

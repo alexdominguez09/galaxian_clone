@@ -111,6 +111,23 @@ bool Game::initialize()
         return false;
     }
 
+    // Stage 19: start every entity's idle animation (graphics-side state
+    // only — the simulation never reads it).
+    for (int row = 0; row < EnemyFormation::kRows; ++row) {
+        for (int col = 0; col < EnemyFormation::kColumns; ++col) {
+            const EnemyType type = EnemyFormation::typeForRow(row);
+            const animation::AnimationClip* clip =
+                (type == EnemyType::Scout)
+                    ? &animation::kScoutIdleClip
+                    : (type == EnemyType::Guard)
+                          ? &animation::kGuardIdleClip
+                          : &animation::kCommanderIdleClip;
+            enemyAnimators_[row * EnemyFormation::kColumns + col]
+                .play(*clip);
+        }
+    }
+    playerAnimator_.play(animation::kPlayerIdleClip);
+
     initialized_ = true;
     return true;
 }
@@ -370,6 +387,13 @@ void Game::fixedUpdate(double dt)
 
     effects_.update(dt);
 
+    // Stage 19: advance the entity animations on the same fixed step.
+    // Purely visual: nothing here can move a gameplay object.
+    for (animation::Animator& animator : enemyAnimators_) {
+        animator.update(dt);
+    }
+    playerAnimator_.update(dt);
+
     // Stage 16: the wave lifecycle (spec §9) — runs last so the clear
     // detection sees this step's post-combat state. On WaveAdvanced the
     // manager has already rebuilt the formation and handed the new
@@ -472,23 +496,41 @@ void Game::renderPlayfield(bool paused)
             if (!enemy.alive()) {
                 continue;  // holes stay empty (spec §6.3)
             }
-            const int sprite = enemy.definition().spriteIndex;
-            if (enemyTextures_[sprite] != nullptr) {
-                renderer_.drawSprite(*enemyTextures_[sprite],
-                                     enemy.bounds(formationPosition).position());
-            }
+            // Stage 19: the current idle frame (the animator is graphics-
+            // side only; dead slots are simply not drawn, so destruction
+            // can never leave a dangling draw).
+            enemyAnimators_[row * EnemyFormation::kColumns + col].draw(
+                renderer_, enemy.bounds(formationPosition).position());
         }
     }
 
-    // Stage 9: the placeholder destruction effects — a box at each recent
-    // kill site (over the hole the dead enemy left). Stage 19 replaces
-    // these with the explosion animation.
+    // Stage 9/19: the destruction effects — now the real explosion
+    // animation. Each gameplay effect carries its remaining time; the
+    // frame is progress-mapped onto the 4-frame one-shot clip (whose total
+    // duration equals the effect duration exactly).
     for (int i = 0; i < effects_.count(); ++i) {
-        renderer_.drawFilledRect(effects_.effect(i).bounds(), colors::kEffect);
+        const Effect& e = effects_.effect(i);
+        double progress =
+            1.0 - e.timeRemaining / EffectManager::kDurationSeconds;
+        if (progress < 0.0) {
+            progress = 0.0;
+        }
+        if (progress > 1.0) {
+            progress = 1.0;
+        }
+        int frame = static_cast<int>(progress * animation::kExplosionClip.frameCount());
+        if (frame >= animation::kExplosionClip.frameCount()) {
+            frame = animation::kExplosionClip.frameCount() - 1;
+        }
+        const Texture* tex = renderer_.texture(
+            animation::kExplosionClip.textureId(frame));
+        if (tex != nullptr) {
+            renderer_.drawSprite(*tex, e.bounds().position());
+        }
     }
 
-    // Stage 5/15: the real Player (drawn on top of the test scene). The
-    // sprite is 24x16 and coincides with the collision box. Hidden while
+    // Stage 5/15/19: the real Player with its idle animation. The sprite
+    // is 24x16 and coincides with the collision box. Hidden while
     // Dying/Respawning/GameOver; blinking at ~4 Hz during the
     // Invulnerable window.
     const bool shipVisible =
@@ -496,8 +538,8 @@ void Game::renderPlayfield(bool paused)
         (player_.state() != PlayerState::Invulnerable ||
          std::fmod(simTime_, kInvulnerableBlinkPeriodSeconds) <
              kInvulnerableBlinkPeriodSeconds * 0.5);
-    if (shipVisible && playerTexture_ != nullptr) {
-        renderer_.drawSprite(*playerTexture_, player_.bounds().position());
+    if (shipVisible) {
+        playerAnimator_.draw(renderer_, player_.bounds().position());
     }
 
     // Stage 6: the live projectiles. The 4x10 bullet sprite coincides with
