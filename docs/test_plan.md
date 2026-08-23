@@ -177,11 +177,11 @@ Manual:
 - [x] Destroyed entity's animation resources released (no dangling draw)
 
 ### Stage 20 — Audio
-- [ ] Each SoundId triggers its callback (mock device)
-- [ ] 100 rapid fires: no corruption, bounded voice count
-- [ ] Overlapping SFX allowed
-- [ ] No audio device → game runs silent, no crash
-- [ ] Shutdown releases audio (no leak reports)
+- [x] Each SoundId triggers its callback (mock device)
+- [x] 100 rapid fires: no corruption, bounded voice count
+- [x] Overlapping SFX allowed
+- [x] No audio device → game runs silent, no crash
+- [x] Shutdown releases audio (no leak reports)
 
 ### Stage 21 — Configuration
 - [ ] All §14 spec values load from game.json and are used by gameplay

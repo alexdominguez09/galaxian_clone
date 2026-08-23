@@ -16,6 +16,8 @@
 #include "states/StateMachine.hpp"
 #include "graphics/DevScene.hpp"
 
+#include "../audio/AudioManager.hpp"
+
 #include <array>
 #include "graphics/Renderer.hpp"
 #include "input/InputManager.hpp"
@@ -203,6 +205,9 @@ private:
     // interstitial, and the bounded difficulty handover to the next
     // formation + director parameters.
     WaveManager waves_;
+    // Stage 20: the audio subsystem (ids only — no file paths in gameplay;
+    // silent fallback when no device is available).
+    AudioManager audio_;
     // Stage 17: the top-level state machine (spec §10 graph, validated
     // transitions; the callback runs the enter/exit bookkeeping).
     StateMachine states_;

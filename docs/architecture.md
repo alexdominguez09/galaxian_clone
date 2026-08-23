@@ -565,9 +565,36 @@ Stage 17 implements it (`src/states/GameState.{hpp,cpp}`,
 
 ### 3.10 Audio (Stage 20)
 
-- `AudioManager::playSound(SoundId)`, `playMusic(MusicId)`.
-- Ids map to files in one place (audio module). Silent no-op fallback when
-  `SDL_Init(SDL_INIT_AUDIO)` fails.
+Stage 20 implements it (`src/audio/AudioManager.{hpp,cpp}`):
+
+- **Ids only** (the plan's hard rule): gameplay never sees file paths or
+  devices — `Game` calls `audio_.playSound(SoundId::PlayerFire)` etc. at
+  the composition-root event sites (player/enemy fire, enemy/player
+  destroyed, wave start, game start via the state callback, game over).
+- **Procedural dev audio** (DevArt precedent): the clips are tiny
+  synthesized chiptune-style buffers (square sweeps / noise bursts /
+  tone sequences) generated at initialize() into memory — no binary
+  assets, no SDL_mixer dependency; plain SDL2 audio only. Stage 24 can
+  swap real files in behind the same ids (the architecture's "ids map to
+  files" point).
+- **Silent fallback**: if opening a device fails, or `GALAXIAN_SILENT=1`
+  is set (headless determinism), the manager runs muted but fully
+  functional — play requests are still counted, the game never crashes.
+  NOTE: the manager initializes `SDL_INIT_AUDIO` ITSELF — the renderer
+  only brings up video, and SDL does not lazy-init audio (missing this
+  muted the whole game until the Stage 20 fix; a regression test opens a
+  real dummy-driver device to guard it).
+- **Music**: `playMusic(Gameplay)` starts the looping track whenever a run
+  begins (Title -> Playing); it stops at GameOver and on returning to
+  Title.
+- **Bounded voices**: a fixed pool of 8 mixing slots with round-robin
+  reuse plus one dedicated looping music channel; overlapping effects are
+  allowed by construction and rapid firing cannot grow memory. The mix is
+  summed in int32 and clamped back to S16.
+- **Thread safety & determinism**: the SDL callback mutates voices under
+  `SDL_LockAudioDevice`; clip synthesis is seeded per position, so two
+  identically-driven managers mix bit-identically (unit-tested without
+  any device via synchronous mixer test hooks).
 
 ### 3.11 Persistence (Stage 22)
 

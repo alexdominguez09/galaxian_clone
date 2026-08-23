@@ -11,6 +11,8 @@
 #include "graphics/Hud.hpp"
 #include "states/GameState.hpp"
 
+#include <cstdlib>  // getenv (GALAXIAN_SILENT)
+
 namespace galaxian {
 
 namespace {
@@ -41,6 +43,16 @@ void Game::onStateChanged(GameStateId from, GameStateId to, void* self)
     auto* game = static_cast<Game*>(self);
     std::printf("State: %s -> %s\n", gameStateName(from),
                 gameStateName(to));
+    // Stage 20: state-driven audio cues.
+    if (to == GameStateId::Playing && from == GameStateId::Title) {
+        game->audio_.playSound(SoundId::GameStart);
+        game->audio_.playMusic(MusicId::Gameplay);  // loops for the run
+    } else if (to == GameStateId::GameOver) {
+        game->audio_.stopMusic();
+        game->audio_.playSound(SoundId::GameOver);
+    } else if (to == GameStateId::Title) {
+        game->audio_.stopMusic();
+    }
     switch (to) {
         case GameStateId::Playing:
             // Spec §10: entering Playing always starts a fresh game — but
@@ -81,6 +93,12 @@ bool Game::initialize()
     }
     // Stage 4: bring up the input layer after SDL (the renderer) is ready.
     input_.initialize();
+    // Stage 20: bring up audio (silent fallback if no device / env-forced).
+    // GALAXIAN_SILENT=1 forces the muted path for headless determinism.
+    if (std::getenv("GALAXIAN_SILENT") != nullptr) {
+        audio_.setSilent(true);
+    }
+    audio_.initialize();
     // Stage 17: the top-level state machine starts on the Title screen;
     // every accepted transition runs the enter bookkeeping below.
     states_.setCallback(&Game::onStateChanged, this);
@@ -306,6 +324,7 @@ void Game::fixedUpdate(double dt)
             // cooldown, max 2 simultaneous); a rejected shot spawns nothing.
             if (projectiles_.tryFirePlayer(player_)) {
                 std::printf("Player fired\n");
+                audio_.playSound(SoundId::PlayerFire);
             }
         }
     }
@@ -338,13 +357,15 @@ void Game::fixedUpdate(double dt)
                 const Rect box = enemy.bounds(fp);
                 const Vector2 muzzle{box.x + box.width * 0.5f, box.bottom()};
                 while (pending-- > 0) {
-                    projectiles_.tryFireEnemy(
-                        muzzle,
-                        player_.alive()
-                            ? player_.position()
-                            : Vector2{muzzle.x,
-                                      static_cast<float>(kLogicalHeight)},
-                        ProjectileManager::speedForWave(waves_.wave()));
+                    if (projectiles_.tryFireEnemy(
+                            muzzle,
+                            player_.alive()
+                                ? player_.position()
+                                : Vector2{muzzle.x,
+                                          static_cast<float>(kLogicalHeight)},
+                            ProjectileManager::speedForWave(waves_.wave()))) {
+                        audio_.playSound(SoundId::EnemyFire);
+                    }
                 }
             }
         }
@@ -364,13 +385,17 @@ void Game::fixedUpdate(double dt)
     // runs after both move so it sees their new positions): a hit
     // kills the enemy, consumes the bullet, awards the type's base points
     // through the ScoreManager, and spawns a placeholder effect.
-    combat::resolvePlayerBullets(projectiles_, formation_, score_, effects_);
+    if (combat::resolvePlayerBullets(projectiles_, formation_, score_,
+                                     effects_) > 0) {
+        audio_.playSound(SoundId::EnemyDestroyed);
+    }
 
     // Stage 15: enemy threats vs the player — bullets and diver bodies
     // (gameplay/Combat). Exactly one life per step; a hit starts the
     // 1.5 s Dying phase with a placeholder destruction effect.
     if (combat::resolveEnemyThreats(projectiles_, formation_, player_) != 0) {
         std::printf("Player destroyed (%d lives left)\n", player_.lives());
+        audio_.playSound(SoundId::PlayerDestroyed);
         effects_.add(player_.bounds().position(), Player::kWidth,
                      Player::kHeight);
     }
@@ -404,6 +429,7 @@ void Game::fixedUpdate(double dt)
         std::printf("Wave %d cleared\n", waves_.wave());
     } else if (waveEvent == WaveManager::Event::WaveAdvanced) {
         std::printf("Wave %d begins\n", waves_.wave());
+        audio_.playSound(SoundId::WaveStart);
     }
 
     // Stage 17: the last life gone ends the run (Playing -> GameOver).
@@ -658,6 +684,7 @@ void Game::reportStats()
 
 void Game::shutdown()
 {
+    audio_.shutdown();
     renderer_.shutdown();
     initialized_ = false;
     running_ = false;

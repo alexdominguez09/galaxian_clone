@@ -30,6 +30,7 @@ find_package(SDL2_image REQUIRED)
 # Core library: timing + shared types + rendering + states. Kept separate
 # so unit tests can link the logic without the full application.
 add_library(galaxian_core STATIC
+    src/audio/AudioManager.cpp
     src/core/GameClock.cpp
     src/core/TimestepController.cpp
     src/core/Game.cpp
@@ -66,6 +67,14 @@ target_link_libraries(galaxian_core PUBLIC
 add_executable(galaxian
     src/main.cpp
 )
+
+# Stage 20 dev tool: interactive sound-design chooser (see
+# tools/SoundChooser.cpp header for usage). Runs from the repo root so the
+# default choices path assets/audio/sound_choices.txt resolves.
+add_executable(sound_chooser
+    tools/SoundChooser.cpp
+)
+target_link_libraries(sound_chooser PRIVATE SDL2::SDL2)
 target_link_libraries(galaxian PRIVATE galaxian_core)
 
 add_subdirectory(tests)

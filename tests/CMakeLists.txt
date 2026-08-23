@@ -29,6 +29,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
 endif()
 
 add_executable(galaxian_tests
+    test_audio.cpp
     test_timestep.cpp
     test_game_clock.cpp
     test_types.cpp

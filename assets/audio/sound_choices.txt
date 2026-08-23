@@ -1,0 +1,9 @@
+# Galaxian sound choices (written by sound_chooser)
+player_fire=d
+enemy_fire=a
+enemy_destroyed=c
+player_destroyed=b
+wave_start=c
+game_start=c
+game_over=c
+music_gameplay=a
